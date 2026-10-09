@@ -43,3 +43,21 @@ CREATE TABLE IF NOT EXISTS signups (
   created_at   INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_signups_event ON signups (event_id, created_at);
+
+-- Push notifications (no login: a browser's push subscription is the identity).
+CREATE TABLE IF NOT EXISTS push_subs (
+  id          TEXT PRIMARY KEY,
+  endpoint    TEXT NOT NULL UNIQUE,
+  p256dh      TEXT NOT NULL,
+  auth        TEXT NOT NULL,
+  lang        TEXT NOT NULL DEFAULT 'en',
+  created_at  INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS push_follows (
+  sub_id      TEXT NOT NULL,
+  target      TEXT NOT NULL,          -- event id, or 's:<series id>' for every date of a series
+  kind        TEXT NOT NULL,          -- 'updates' | 'signups' (lib/notify.js)
+  created_at  INTEGER NOT NULL,
+  PRIMARY KEY (sub_id, target, kind)
+);
+CREATE INDEX IF NOT EXISTS idx_push_follows_target ON push_follows (target, kind);

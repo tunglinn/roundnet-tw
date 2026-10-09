@@ -1,15 +1,22 @@
 import { json, bad } from '../../../../lib/http.js';
 import { checkOrganizer } from '../../../../lib/auth.js';
+import { notify, inBackground } from '../../../../lib/notify.js';
 
 // POST /api/events/:id/end-series  (header X-Edit-Token)
 // Stops the weekly series after this date: no new dates are created; later dates
 // nobody joined are removed, later dates with signups are cancelled (so people find out).
-export async function onRequestPost({ params, request, env }) {
+export async function onRequestPost(ctx) {
+  const { params, request, env } = ctx;
   const { ev, denied } = await checkOrganizer(request, env, params.id);
   if (denied) return denied;
   if (!ev.series_id) return bad('err_bad_request');
 
   const now = Date.now();
+  // Later dates people joined get cancelled below; those people should hear about it.
+  const { results: affected } = await env.DB.prepare(
+    `SELECT id FROM events WHERE series_id = ? AND starts_ts > ? AND cancelled_at IS NULL
+     AND EXISTS (SELECT 1 FROM signups s WHERE s.event_id = events.id)`
+  ).bind(ev.series_id, ev.starts_ts).all();
   await env.DB.batch([
     env.DB.prepare('UPDATE series SET ended_at = ?, until_date = ? WHERE id = ?')
       .bind(now, ev.starts_at.slice(0, 10), ev.series_id),
@@ -21,6 +28,14 @@ export async function onRequestPost({ params, request, env }) {
       `UPDATE events SET cancelled_at = COALESCE(cancelled_at, ?)
        WHERE series_id = ? AND starts_ts > ?`
     ).bind(now, ev.series_id, ev.starts_ts),
+    // Dates that were just removed no longer need followers.
+    env.DB.prepare(
+      `DELETE FROM push_follows WHERE target NOT IN (SELECT id FROM events)
+       AND target NOT LIKE 's:%'`
+    ),
   ]);
+  inBackground(ctx, Promise.all(affected.map((e) => notify(env, {
+    eventId: e.id, kinds: ['updates'], msg: 'cancelled', vars: { reason: '' },
+  }))));
   return json({ ok: true });
 }

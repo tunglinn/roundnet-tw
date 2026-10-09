@@ -1,6 +1,7 @@
 import { validateEvent } from '../../../lib/validate.js';
 import { json, bad, readJson } from '../../../lib/http.js';
 import { checkOrganizer } from '../../../lib/auth.js';
+import { notify, inBackground } from '../../../lib/notify.js';
 import { topUpSeries, templateFrom, occurrence, addDays, daysBetween } from '../../../lib/series.js';
 
 const PUBLIC_COLS = `id, title, starts_at, ends_at, place_name, city, lat, lng, level,
@@ -41,7 +42,8 @@ function updateStmt(env, id, o) {
 // PUT /api/events/:id  (header X-Edit-Token)
 // body.scope = 'future' (weekly pickups only): apply to this and all later dates, and to
 // dates created from now on. Moving the date shifts every later date by the same number of days.
-export async function onRequestPut({ params, request, env }) {
+export async function onRequestPut(ctx) {
+  const { params, request, env } = ctx;
   const { ev, denied } = await checkOrganizer(request, env, params.id);
   if (denied) return denied;
   const body = await readJson(request);
@@ -49,8 +51,12 @@ export async function onRequestPut({ params, request, env }) {
   const { errors, value: v } = validateEvent(body);
   if (errors.length) return bad(errors);
 
+  const exclude = request.headers.get('x-push-sub');
+  const changed = (id, kinds = ['updates', 'signups']) => notify(env, { eventId: id, kinds, msg: 'changed', exclude });
+
   if (body.scope !== 'future' || !ev.series_id) {
     await updateStmt(env, params.id, v).run();
+    inBackground(ctx, changed(params.id));
     return json({ ok: true });
   }
 
@@ -63,6 +69,12 @@ export async function onRequestPut({ params, request, env }) {
     env.DB.prepare('UPDATE series SET template = ? WHERE id = ?').bind(JSON.stringify(tpl), ev.series_id),
     ...later.map((e) => updateStmt(env, e.id, occurrence(tpl, addDays(e.starts_at.slice(0, 10), shift)))),
   ]);
+  // Players follow single dates, so tell each changed date's followers. Organizers follow
+  // the whole series, so they get one notification instead of one per date.
+  inBackground(ctx, Promise.all([
+    ...later.map((e) => changed(e.id, ['updates'])),
+    changed(params.id, ['signups']),
+  ]));
   return json({ ok: true });
 }
 
@@ -74,6 +86,9 @@ export async function onRequestDelete({ params, request, env }) {
   if (denied) return denied;
   const joined = await env.DB.prepare('SELECT 1 AS x FROM signups WHERE event_id = ? LIMIT 1').bind(params.id).first();
   if (joined || ev.series_id) return bad('err_cannot_delete', 409);
-  await env.DB.prepare('DELETE FROM events WHERE id = ?').bind(params.id).run();
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM events WHERE id = ?').bind(params.id),
+    env.DB.prepare('DELETE FROM push_follows WHERE target = ?').bind(params.id),
+  ]);
   return json({ ok: true });
 }

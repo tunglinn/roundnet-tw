@@ -112,6 +112,9 @@ function storeDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
 function api(path, opts) {
   opts = opts || {};
   var headers = Object.assign({ 'content-type': 'application/json' }, opts.headers || {});
+  // Lets the server skip notifying this device about its own changes.
+  var pushSub = storeGet('push-sub');
+  if (pushSub) headers['x-push-sub'] = pushSub;
   return fetch(path, {
     method: opts.method || 'GET',
     headers: headers,
@@ -153,6 +156,87 @@ function makeMap(id, center, zoom) {
 
 function dot(latlng) {
   return L.circleMarker(latlng, { radius: 9, color: '#000', weight: 2, fillColor: '#ffd800', fillOpacity: 1 });
+}
+
+// ---------- PWA / push notifications ----------
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function () {});
+
+function isStandalone() {
+  return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+}
+function isIOS() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+function inLineApp() { return /\bLine\//i.test(navigator.userAgent); }
+
+// LINE opens links in its own browser, which can't do push; this param makes LINE open the system browser.
+function externalUrl() {
+  return location.href + (location.search ? '&' : '?') + 'openExternalBrowser=1';
+}
+
+// 'ok' | 'line' | 'ios_install' | 'unsupported' | 'denied'
+function pushState() {
+  if (inLineApp()) return 'line';
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+    return isIOS() && !isStandalone() ? 'ios_install' : 'unsupported';
+  }
+  return Notification.permission === 'denied' ? 'denied' : 'ok';
+}
+
+function b64urlBytes(s) {
+  var bin = atob(s.replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(bin, function (c) { return c.charCodeAt(0); });
+}
+
+// opts: {eventId, kinds: ['updates'] | ['signups'], key: localStorage key, label: i18n key}
+function enablePush(opts) {
+  // requestPermission must be the first thing after the tap (iOS requires a user gesture).
+  return Notification.requestPermission().then(function (perm) {
+    if (perm !== 'granted') { var e = new Error('denied'); e.errors = ['err_push_denied']; throw e; }
+    return Promise.all([navigator.serviceWorker.ready, api('/api/push/key')]);
+  }).then(function (r) {
+    return r[0].pushManager.getSubscription().then(function (sub) {
+      return sub || r[0].pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64urlBytes(r[1].key) });
+    });
+  }).then(function (sub) {
+    return api('/api/push/subscribe', { method: 'POST',
+      body: { subscription: sub.toJSON(), lang: LANG, event_id: opts.eventId, kinds: opts.kinds } });
+  }).then(function (res) {
+    storeSet('push-sub', res.sub_id);
+    storeSet(opts.key, '1');
+  });
+}
+
+function disablePush(opts) {
+  return navigator.serviceWorker.ready
+    .then(function (reg) { return reg.pushManager.getSubscription(); })
+    .then(function (sub) {
+      if (sub) return api('/api/push/unsubscribe', { method: 'POST',
+        body: { endpoint: sub.endpoint, event_id: opts.eventId, kinds: opts.kinds } });
+    })
+    .then(function () { storeDel(opts.key); });
+}
+
+// A 🔔 on/off button. When push can't work here (LINE, iPhone browser, …) a tap explains what to do.
+function renderPush(el, opts) {
+  var on = !!storeGet(opts.key);
+  el.innerHTML = '<button type="button">' + esc(t(on ? 'push_off' : opts.label)) + '</button>' +
+    (on ? ' <span class="small st-on">' + esc(t('push_on')) + '</span>' : '') + '<div class="pushmsg"></div>';
+  var btn = el.querySelector('button');
+  var msg = el.querySelector('.pushmsg');
+  btn.onclick = function () {
+    var state = pushState();
+    if (!on && state !== 'ok') {
+      msg.innerHTML = '<div class="msg">' + esc(t('push_' + state)) +
+        (state === 'line' ? ' <a href="' + esc(externalUrl()) + '">' + esc(t('push_open_browser')) + '</a>' : '') + '</div>';
+      return;
+    }
+    btn.disabled = true;
+    (on ? disablePush(opts) : enablePush(opts))
+      .then(function () { renderPush(el, opts); })
+      .catch(function (err) { btn.disabled = false; showMsg(msg, esc(errText(err)), 'err'); });
+  };
 }
 
 // ---------- page chrome ----------

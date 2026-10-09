@@ -133,6 +133,7 @@ ol.names a.rm { font-size: 11px; margin-left: 6px; }
 .status.big { font-size: 18px; border-width: 2px; margin-bottom: 14px; }
 .status.big a { font-size: 14px; }
 .was-list { color: #777; }
+.pushbox { margin-top: 12px; }
 .struck { text-decoration: line-through; }
 .repeat { font-size: 12px; white-space: nowrap; }
 .datebar { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 10px; }

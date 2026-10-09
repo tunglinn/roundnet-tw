@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Ccircle cx=%278%27 cy=%278%27 r=%276.5%27 fill=%27%23ffd800%27 stroke=%27%23000%27 stroke-width=%272%27/%3E%3Ccircle cx=%278%27 cy=%278%27 r=%273%27 fill=%27none%27 stroke=%27%23000%27/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/app/style.css">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="theme-color" content="#000080">
+<meta name="apple-mobile-web-app-title" content="Roundnet TW">
 <title>Roundnet Taiwan Pickups · 台灣 Roundnet 揪團</title>
 <meta name="description" content="Find and join roundnet pickup games in Taiwan. 找台灣的 Roundnet 揪團。">
 </head>
@@ -23,12 +27,41 @@
   </div>
 </div>
 
+<div class="win" id="pastebox" style="display:none">
+  <div class="bar" data-i18n="paste_title"></div>
+  <div class="body">
+    <p class="small" data-i18n="paste_help"></p>
+    <form id="pasteform" class="copyrow">
+      <input type="text" id="pastelink" placeholder="https://…/event?id=…&amp;edit=…">
+      <button type="submit" data-i18n="btn_open"></button>
+    </form>
+    <div id="pastemsg"></div>
+  </div>
+</div>
+
 <div id="ftr"></div>
 </div>
 <script src="/app/i18n.js"></script>
 <script src="/app/app.js"></script>
 <script>
 renderChrome();
+
+// In the installed app (home screen), the browser's saved edit links aren't available.
+if (isStandalone()) {
+  $('pastebox').style.display = '';
+  $('pasteform').onsubmit = function (e) {
+    e.preventDefault();
+    try {
+      var u = new URL($('pastelink').value.trim());
+      var id = u.searchParams.get('id'), edit = u.searchParams.get('edit');
+      if (/\/event(\.html)?$/.test(u.pathname) && id && edit) {
+        location.href = '/event?id=' + encodeURIComponent(id) + '&edit=' + encodeURIComponent(edit);
+        return;
+      }
+    } catch (err) {}
+    showMsg($('pastemsg'), esc(t('err_bad_link')), 'err');
+  };
+}
 
 var city = param('city') || '';
 var sel = $('city');

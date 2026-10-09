@@ -26,6 +26,13 @@ Schema changes: run the new `worker/migrate_vN.sql` on production **before** pus
 npx wrangler d1 execute roundnet-tw --remote --command="$(grep -v '^--' worker/migrate_vN.sql)"
 ```
 
+## Push notifications
+Keys are generated with `npm run vapid`. The public key goes in `wrangler.jsonc` under `vars`. The private key goes in `.dev.vars` (local, gitignored) and is set as a secret in production:
+```bash
+npx wrangler pages secret put VAPID_PRIVATE_KEY --project-name roundnet-tw
+```
+Android and desktop browsers can turn notifications on directly. iPhone needs the site added to the Home Screen first (iOS 16.4+). LINE's in-app browser can't receive notifications, so the page offers an "Open in your browser" link.
+
 ## How "no login" works
 - Creating a pickup returns a secret **edit link** (`/event?id=…&edit=TOKEN`). That device remembers it (localStorage); anyone with the link can edit or delete.
 - Pickups are **cancelled, never deleted**, once anyone has joined, so nobody is left wondering where a pickup went. Weekly pickups can be cancelled one date at a time, or ended after a given date.

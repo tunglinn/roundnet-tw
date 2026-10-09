@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Ccircle cx=%278%27 cy=%278%27 r=%276.5%27 fill=%27%23ffd800%27 stroke=%27%23000%27 stroke-width=%272%27/%3E%3Ccircle cx=%278%27 cy=%278%27 r=%273%27 fill=%27none%27 stroke=%27%23000%27/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/app/style.css">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="theme-color" content="#000080">
+<meta name="apple-mobile-web-app-title" content="Roundnet TW">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <title>Roundnet Taiwan Pickups</title>
@@ -155,6 +159,7 @@ function render(ev) {
         '<button type="submit" class="joinbtn" id="joinbtn"></button>' +
         '<div id="joinmsg"></div>' +
       '</form>') +
+      '<div class="pushbox" id="push-updates"></div>' +
     '</div></div>' +
 
     '<div class="win"><div class="bar">' + esc(t('share')) + '</div><div class="body">' +
@@ -180,6 +185,7 @@ function render(ev) {
             ? '<button type="button" class="danger" onclick="deleteEvent()">' + esc(t('btn_delete')) + '</button>' : '') +
         '</div>' +
         (ev.series_id || ev.signups.length ? '<p class="small">' + esc(t('delete_help')) + '</p>' : '') +
+        '<div class="pushbox" id="push-signups"></div>' +
       '</div></div>';
   }
 
@@ -188,6 +194,12 @@ function render(ev) {
 
   map = makeMap('map', [ev.lat, ev.lng], 15);
   dot([ev.lat, ev.lng]).addTo(map);
+
+  renderPush($('push-updates'), { eventId: id, kinds: ['updates'], key: 'push:' + id, label: 'push_updates' });
+  if (token) {
+    // Organizers follow joins for the whole series, so the on/off state is per series.
+    renderPush($('push-signups'), { eventId: id, kinds: ['signups'], key: 'push-org:' + (ev.series_id || id), label: 'push_signups' });
+  }
 
   if (!$('join')) return;  // cancelled: no joining
   resetJoinForm();

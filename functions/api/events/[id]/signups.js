@@ -1,12 +1,14 @@
 import { parsePeople, MAX_SIGNUPS_PER_EVENT } from '../../../../lib/validate.js';
 import { json, bad, readJson, newId, newToken } from '../../../../lib/http.js';
+import { notify, inBackground, namesText } from '../../../../lib/notify.js';
 
 // POST /api/events/:id/signups
 //   {people: [{name: "Tung", brings: ["net", "balls"], note: "arrive ~3pm"}, ...]}
 //   or {names: "Tung, Amy, Ben"} (names only)
 // Each person becomes its own signup with its own remove_token (returned only here).
 // Names already on the list (case-insensitive) are skipped, which also absorbs double-submits.
-export async function onRequestPost({ params, request, env }) {
+export async function onRequestPost(ctx) {
+  const { params, request, env } = ctx;
   const ev = await env.DB.prepare('SELECT id, cancelled_at FROM events WHERE id = ?').bind(params.id).first();
   if (!ev) return bad('err_not_found', 404);
   if (ev.cancelled_at) return bad('err_cancelled', 409);
@@ -31,6 +33,12 @@ export async function onRequestPost({ params, request, env }) {
         'INSERT INTO signups (id, event_id, name, brings, note, remove_token, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
       ).bind(s.id, params.id, s.name, s.brings.join(','), s.note, s.remove_token, now)
     ));
+  }
+  if (added.length) {
+    inBackground(ctx, notify(env, {
+      eventId: params.id, kinds: ['signups'], msg: 'joined', exclude: request.headers.get('x-push-sub'),
+      vars: { names: namesText(added.map((s) => s.name)), count: existing.length + added.length },
+    }));
   }
   return json({ added, skipped }, 201);
 }

@@ -27,11 +27,14 @@ export function fakeD1() {
   };
 }
 
-// Call a Pages Function handler like the runtime would.
+// Call a Pages Function handler like the runtime would. Background work passed to
+// waitUntil (notifications) is awaited before returning, so tests can check it.
 export async function call(handler, { env, params = {}, method = 'GET', path = '/', body, headers = {} }) {
   const request = new Request('http://test' + path, {
     method, headers, body: body === undefined ? undefined : JSON.stringify(body),
   });
-  const res = await handler({ request, env, params });
+  const pending = [];
+  const res = await handler({ request, env, params, waitUntil: (p) => pending.push(p) });
+  await Promise.all(pending);
   return { status: res.status, data: await res.json() };
 }

@@ -1,12 +1,13 @@
 import { parsePeople } from '../../../lib/validate.js';
 import { json, bad, readJson } from '../../../lib/http.js';
+import { notify, inBackground } from '../../../lib/notify.js';
 
 // Changing or removing a signup is allowed with the name's X-Remove-Token
 // (the device that added it) or the event's X-Edit-Token (the organizer).
 // Returns {row} if allowed, otherwise {denied: Response}.
 async function authorize(request, env, id) {
   const row = await env.DB.prepare(
-    `SELECT s.event_id, s.remove_token, e.edit_token FROM signups s JOIN events e ON e.id = s.event_id
+    `SELECT s.event_id, s.name, s.remove_token, e.edit_token FROM signups s JOIN events e ON e.id = s.event_id
      WHERE s.id = ?`
   ).bind(id).first();
   if (!row) return { denied: bad('err_not_found', 404) };
@@ -37,9 +38,15 @@ export async function onRequestPatch({ params, request, env }) {
 }
 
 // DELETE /api/signups/:id
-export async function onRequestDelete({ params, request, env }) {
-  const { denied } = await authorize(request, env, params.id);
+export async function onRequestDelete(ctx) {
+  const { params, request, env } = ctx;
+  const { row, denied } = await authorize(request, env, params.id);
   if (denied) return denied;
   await env.DB.prepare('DELETE FROM signups WHERE id = ?').bind(params.id).run();
+  const left = await env.DB.prepare('SELECT COUNT(*) AS n FROM signups WHERE event_id = ?').bind(row.event_id).first();
+  inBackground(ctx, notify(env, {
+    eventId: row.event_id, kinds: ['signups'], msg: 'left', exclude: request.headers.get('x-push-sub'),
+    vars: { names: row.name, count: left.n },
+  }));
   return json({ ok: true });
 }

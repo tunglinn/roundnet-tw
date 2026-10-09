@@ -3,6 +3,12 @@
   "name": "roundnet-tw",
   "pages_build_output_dir": "public",
   "compatibility_date": "2026-04-28",
+  // Push notifications. The matching VAPID_PRIVATE_KEY is a secret: .dev.vars locally,
+  // `npx wrangler pages secret put VAPID_PRIVATE_KEY --project-name roundnet-tw` in production.
+  "vars": {
+    "VAPID_PUBLIC_KEY": "BPtoXgBRcUvxlD-dUpHf4Q7teBSGoW6jGNb5FLFUDrGsb5v7fFhtu6fAt2CG-uqbL0m5bUihQozlwmzSyWa8Nzk",
+    "VAPID_SUBJECT": "https://roundnet-tw.pages.dev"
+  },
   "d1_databases": [
     {
       "binding": "DB",
