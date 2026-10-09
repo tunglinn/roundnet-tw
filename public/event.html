@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Ccircle cx=%278%27 cy=%278%27 r=%276.5%27 fill=%27%23ffd800%27 stroke=%27%23000%27 stroke-width=%272%27/%3E%3Ccircle cx=%278%27 cy=%278%27 r=%273%27 fill=%27none%27 stroke=%27%23000%27/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/app/style.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<title>Roundnet Taiwan Pickups</title>
+<!-- Filled per event by functions/event.js for link previews -->
+<meta name="description" content="Roundnet pickup in Taiwan">
+<meta property="og:title" content="Roundnet Taiwan Pickups">
+<meta property="og:description" content="Roundnet pickup in Taiwan">
+<meta property="og:type" content="website">
+</head>
+<body>
+<div class="wrap">
+<div id="hdr"></div>
+<div id="content"><p style="color:#fff" data-i18n="loading"></p></div>
+<div id="ftr"></div>
+</div>
+<script src="/app/i18n.js"></script>
+<script src="/app/app.js"></script>
+<script>
+renderChrome();
+
+var id = param('id') || '';
+var isNew = param('new') === '1';
+// The organizer's secret token can arrive in the link; keep it on this device
+// and strip it from the address bar so it doesn't get shared by accident.
+if (param('edit')) storeSet('edit:' + id, param('edit'));
+if (param('edit') || isNew) history.replaceState(null, '', '/event?id=' + encodeURIComponent(id));
+var token = storeGet('edit:' + id);
+var map = null;
+
+function load() {
+  return api('/api/events/' + encodeURIComponent(id)).then(render).catch(function (err) {
+    $('content').innerHTML = '<div class="win"><div class="body"><div class="err">' + esc(errText(err)) +
+      '</div><a href="/">' + esc(t('back')) + '</a></div></div>';
+  });
+}
+
+function nameItem(s) {
+  var canRemove = token || storeGet('rm:' + s.id);
+  return '<li>' + esc(s.name) +
+    (canRemove ? ' <a href="#" class="rm" onclick="removeName(\'' + esc(s.id) + '\');return false">[' + esc(t('remove')) + ']</a>' : '') +
+    '</li>';
+}
+
+function render(ev) {
+  document.title = ev.title + ' · ' + t('site_title');
+  var max = ev.max_players;
+  var going = max ? ev.signups.slice(0, max) : ev.signups;
+  var waiting = max ? ev.signups.slice(max) : [];
+  var publicLink = location.origin + '/event?id=' + encodeURIComponent(id);
+  var gmaps = 'https://www.google.com/maps/search/?api=1&query=' + ev.lat + ',' + ev.lng;
+
+  var html =
+    '<div class="win"><div class="bar">' + esc(ev.title) + '</div><div class="body">' +
+      '<table class="info">' +
+        '<tr><th>' + esc(t('d_when')) + '</th><td>' + esc(fmtWhen(ev)) + '</td></tr>' +
+        '<tr><th>' + esc(t('d_where')) + '</th><td>' + esc(ev.place_name) + ', ' + esc(cityName(ev.city)) +
+          '<br><a href="' + gmaps + '" target="_blank" rel="noopener">' + esc(t('open_maps')) + '</a></td></tr>' +
+        '<tr><th>' + esc(t('d_level')) + '</th><td>' + esc(levelName(ev.level)) + '</td></tr>' +
+        (ev.contact ? '<tr><th>' + esc(t('d_contact')) + '</th><td>' + esc(ev.contact) + '</td></tr>' : '') +
+        (ev.notes ? '<tr><th>' + esc(t('d_notes')) + '</th><td class="pre">' + esc(ev.notes) + '</td></tr>' : '') +
+      '</table>' +
+      '<div id="map" class="map small" style="margin-top:8px"></div>' +
+    '</div></div>' +
+
+    '<div class="win"><div class="bar">' + esc(t('going')) + ' (' + esc(playersText(going.length, max)) + ')</div><div class="body">' +
+      '<div class="inset">' +
+        (going.length ? '<ol class="names">' + going.map(nameItem).join('') + '</ol>' : esc(t('nobody'))) +
+        (waiting.length ? '<p style="margin:8px 0 2px"><b>' + esc(t('waitlist')) + ' (' + waiting.length + ')</b></p>' +
+          '<ol class="names" start="' + (going.length + 1) + '">' + waiting.map(nameItem).join('') + '</ol>' : '') +
+      '</div>' +
+      '<form id="join" style="margin-top:12px">' +
+        '<label for="names">' + esc(t('join_title')) + '</label>' +
+        '<div class="small" style="margin-bottom:4px">' + esc(t('join_help')) + '</div>' +
+        '<div class="copyrow"><input type="text" id="names" maxlength="600" placeholder="' + esc(t('ph_names')) + '">' +
+        '<button type="submit">' + esc(t('btn_add')) + '</button></div>' +
+        '<div id="joinmsg"></div>' +
+      '</form>' +
+    '</div></div>' +
+
+    '<div class="win"><div class="bar">' + esc(t('share')) + '</div><div class="body">' +
+      '<div class="copyrow"><input type="text" id="share" readonly value="' + esc(publicLink) + '">' +
+      '<button type="button" onclick="copyText($(\'share\'), this)">' + esc(t('btn_copy')) + '</button></div>' +
+    '</div></div>';
+
+  if (token) {
+    var editLink = publicLink + '&edit=' + encodeURIComponent(token);
+    html +=
+      '<div class="win"><div class="bar">' + esc(t('organizer')) + '</div><div class="body">' +
+        '<div class="' + (isNew ? 'msg' : 'small') + '">' + esc(t(isNew ? 'created_msg' : 'edit_link')) + '</div>' +
+        '<div class="copyrow"><input type="text" id="editlink" readonly value="' + esc(editLink) + '">' +
+        '<button type="button" onclick="copyText($(\'editlink\'), this)">' + esc(t('btn_copy')) + '</button></div>' +
+        '<div class="actions">' +
+          '<a class="btn" href="/new?id=' + encodeURIComponent(id) + '">' + esc(t('btn_edit')) + '</a>' +
+          '<button type="button" class="danger" onclick="deleteEvent()">' + esc(t('btn_delete')) + '</button>' +
+        '</div>' +
+      '</div></div>';
+  }
+
+  var typed = $('names') ? $('names').value : '';
+  $('content').innerHTML = html;
+  $('names').value = typed;
+
+  if (map) map.remove();
+  map = makeMap('map', [ev.lat, ev.lng], 15);
+  dot([ev.lat, ev.lng]).addTo(map);
+
+  $('join').onsubmit = function (e) {
+    e.preventDefault();
+    var btn = this.querySelector('button');
+    btn.disabled = true;
+    api('/api/events/' + encodeURIComponent(id) + '/signups', { method: 'POST', body: { names: $('names').value } })
+      .then(function (res) {
+        res.added.forEach(function (s) { storeSet('rm:' + s.id, s.remove_token); });
+        $('names').value = '';
+        return load().then(function () {
+          var msg = res.added.length ? esc(t('added')) : '';
+          if (res.skipped.length) msg += ' ' + esc(t('skipped')) + ' ' + esc(res.skipped.join(', '));
+          showMsg($('joinmsg'), msg);
+        });
+      })
+      .catch(function (err) {
+        btn.disabled = false;
+        showMsg($('joinmsg'), esc(errText(err)), 'err');
+      });
+  };
+}
+
+function removeName(sid) {
+  if (!confirm(t('confirm_remove'))) return;
+  var headers = {};
+  var rm = storeGet('rm:' + sid);
+  if (rm) headers['x-remove-token'] = rm;
+  if (token) headers['x-edit-token'] = token;
+  api('/api/signups/' + encodeURIComponent(sid), { method: 'DELETE', headers: headers })
+    .then(function () { storeDel('rm:' + sid); return load(); })
+    .catch(function (err) { alert(errText(err)); });
+}
+
+function deleteEvent() {
+  if (!confirm(t('confirm_delete'))) return;
+  api('/api/events/' + encodeURIComponent(id), { method: 'DELETE', headers: { 'x-edit-token': token } })
+    .then(function () {
+      storeDel('edit:' + id);
+      $('content').innerHTML = '<div class="win"><div class="body"><div class="msg">' + esc(t('deleted')) +
+        '</div><a href="/">' + esc(t('back')) + '</a></div></div>';
+    })
+    .catch(function (err) { alert(errText(err)); });
+}
+
+load();
+</script>
+</body>
+</html>

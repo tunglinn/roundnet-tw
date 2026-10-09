@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Ccircle cx=%278%27 cy=%278%27 r=%276.5%27 fill=%27%23ffd800%27 stroke=%27%23000%27 stroke-width=%272%27/%3E%3Ccircle cx=%278%27 cy=%278%27 r=%273%27 fill=%27none%27 stroke=%27%23000%27/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/app/style.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<title>Add a pickup · Roundnet Taiwan Pickups</title>
+</head>
+<body>
+<div class="wrap">
+<div id="hdr"></div>
+
+<div class="win">
+  <div class="bar" id="formtitle" data-i18n="new_title"></div>
+  <div class="body">
+    <form id="form" novalidate>
+      <label for="title" data-i18n="f_title"></label>
+      <input type="text" id="title" maxlength="80" required data-i18n-ph="ph_title">
+
+      <div class="row">
+        <div><label for="date" data-i18n="f_date"></label><input type="date" id="date" required></div>
+        <div><label for="start" data-i18n="f_start"></label><input type="time" id="start" required></div>
+        <div><label for="end" data-i18n="f_end"></label><input type="time" id="end"></div>
+      </div>
+
+      <label for="place" data-i18n="f_place"></label>
+      <input type="text" id="place" maxlength="100" required data-i18n-ph="ph_place">
+
+      <div class="row">
+        <div><label for="city" data-i18n="f_city"></label><select id="city" required></select></div>
+        <div><label for="level" data-i18n="f_level"></label><select id="level"></select></div>
+        <div><label for="max" data-i18n="f_max"></label><input type="number" id="max" min="2" max="100" style="width:7em"></div>
+      </div>
+
+      <label><span data-i18n="f_pin"></span> &nbsp; <span id="pinstate" class="small"></span></label>
+      <div id="map" class="map small"></div>
+      <p class="small"><button type="button" id="locate" data-i18n="f_mylocation"></button></p>
+
+      <label for="contact" data-i18n="f_contact"></label>
+      <input type="text" id="contact" maxlength="100">
+
+      <label for="notes" data-i18n="f_notes"></label>
+      <textarea id="notes" maxlength="1000" data-i18n-ph="ph_notes"></textarea>
+
+      <div id="errors"></div>
+      <div class="actions">
+        <button type="submit" id="submit" data-i18n="btn_create"></button>
+        <a href="/" id="cancel" data-i18n="btn_cancel"></a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="ftr"></div>
+</div>
+<script src="/app/i18n.js"></script>
+<script src="/app/app.js"></script>
+<script>
+renderChrome();
+
+// Edit mode: /new?id=… with the edit token in localStorage.
+var editId = param('id');
+var token = editId ? storeGet('edit:' + editId) : null;
+if (editId && !token) location.replace('/event?id=' + encodeURIComponent(editId));
+
+$('city').innerHTML = '<option value="">' + esc(t('choose')) + '</option>' +
+  CITIES.map(function (c) { return '<option value="' + c + '">' + esc(cityName(c)) + '</option>'; }).join('');
+$('level').innerHTML = LEVELS.map(function (l) { return '<option value="' + l + '">' + esc(levelName(l)) + '</option>'; }).join('');
+$('date').min = taipeiToday();
+
+var map = makeMap('map');
+var pin = null;
+function setPin(ll) {
+  if (pin) pin.setLatLng(ll); else pin = dot(ll).addTo(map);
+  $('pinstate').textContent = t('pin_set');
+}
+$('pinstate').textContent = t('pin_missing');
+map.on('click', function (e) { setPin(e.latlng); });
+
+$('locate').onclick = function () {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(function (p) {
+    map.setView([p.coords.latitude, p.coords.longitude], 16);
+  });
+};
+
+if (editId && token) {
+  $('formtitle').textContent = t('edit_title');
+  $('submit').textContent = t('btn_save');
+  $('cancel').href = '/event?id=' + encodeURIComponent(editId);
+  api('/api/events/' + encodeURIComponent(editId)).then(function (ev) {
+    $('title').value = ev.title;
+    $('date').value = ev.starts_at.slice(0, 10);
+    $('date').removeAttribute('min');
+    $('start').value = ev.starts_at.slice(11, 16);
+    $('end').value = ev.ends_at ? ev.ends_at.slice(11, 16) : '';
+    $('place').value = ev.place_name;
+    $('city').value = ev.city;
+    $('level').value = ev.level;
+    $('max').value = ev.max_players || '';
+    $('contact').value = ev.contact;
+    $('notes').value = ev.notes;
+    setPin([ev.lat, ev.lng]);
+    map.setView([ev.lat, ev.lng], 15);
+  }).catch(function (err) { showMsg($('errors'), esc(errText(err)), 'err'); });
+}
+
+$('form').onsubmit = function (e) {
+  e.preventDefault();
+  var ll = pin ? pin.getLatLng() : null;
+  var body = {
+    title: $('title').value, date: $('date').value, start: $('start').value, end: $('end').value,
+    place_name: $('place').value, city: $('city').value, level: $('level').value,
+    max_players: $('max').value, contact: $('contact').value, notes: $('notes').value,
+    lat: ll ? ll.lat : '', lng: ll ? ll.lng : ''
+  };
+  $('submit').disabled = true;
+  $('errors').innerHTML = '';
+  var req = editId
+    ? api('/api/events/' + encodeURIComponent(editId), { method: 'PUT', body: body, headers: { 'x-edit-token': token } })
+        .then(function () { location.href = '/event?id=' + encodeURIComponent(editId); })
+    : api('/api/events', { method: 'POST', body: body }).then(function (res) {
+        storeSet('edit:' + res.id, res.edit_token);
+        location.href = '/event?id=' + res.id + '&edit=' + res.edit_token + '&new=1';
+      });
+  req.catch(function (err) {
+    $('submit').disabled = false;
+    showMsg($('errors'), (err.errors || ['error']).map(function (k) { return esc(t(k)); }).join('<br>'), 'err');
+  });
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "roundnet-tw",
+  "pages_build_output_dir": "public",
+  "compatibility_date": "2026-04-28",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "roundnet-tw",
+      // Replace with the id printed by `npx wrangler d1 create roundnet-tw` before deploying.
+      "database_id": "3bb47be9-64c2-439d-8f87-8b1092fa6507"
+    }
+  ]
+}

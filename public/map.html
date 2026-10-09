@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Ccircle cx=%278%27 cy=%278%27 r=%276.5%27 fill=%27%23ffd800%27 stroke=%27%23000%27 stroke-width=%272%27/%3E%3Ccircle cx=%278%27 cy=%278%27 r=%273%27 fill=%27none%27 stroke=%27%23000%27/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/app/style.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<title>Map · Roundnet Taiwan Pickups</title>
+</head>
+<body>
+<div class="wrap">
+<div id="hdr"></div>
+
+<div class="win">
+  <div class="bar" data-i18n="map_title"></div>
+  <div class="body">
+    <p class="small" data-i18n="map_help"></p>
+    <div id="map" class="map"></div>
+    <div id="status"></div>
+  </div>
+</div>
+
+<div id="ftr"></div>
+</div>
+<script src="/app/i18n.js"></script>
+<script src="/app/app.js"></script>
+<script>
+renderChrome();
+var map = makeMap('map');
+
+api('/api/events').then(function (rows) {
+  // Group pickups at the same spot into one dot.
+  var spots = {};
+  rows.forEach(function (ev) {
+    var key = ev.lat.toFixed(4) + ',' + ev.lng.toFixed(4);
+    (spots[key] = spots[key] || []).push(ev);
+  });
+  var points = [];
+  Object.keys(spots).forEach(function (key) {
+    var evs = spots[key];
+    var ll = [evs[0].lat, evs[0].lng];
+    points.push(ll);
+    dot(ll).addTo(map).bindPopup(
+      '<b>' + esc(evs[0].place_name) + '</b><br>' +
+      evs.map(function (ev) {
+        return '<a href="/event?id=' + esc(ev.id) + '">' + esc(ev.title) + '</a><br>' +
+          '<span class="small">' + esc(fmtWhen(ev)) + ' &middot; ' + esc(t('col_players')) + ': ' +
+          esc(playersText(ev.count, ev.max_players)) + '</span>';
+      }).join('<hr>')
+    );
+  });
+  if (points.length) map.fitBounds(points, { padding: [30, 30], maxZoom: 13 });
+  else showMsg($('status'), esc(t('none')) + ' <a href="/new">' + esc(t('nav_new')) + '</a>');
+}).catch(function (err) {
+  showMsg($('status'), esc(errText(err)), 'err');
+});
+</script>
+</body>
+</html>
