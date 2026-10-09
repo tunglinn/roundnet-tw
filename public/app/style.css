@@ -128,6 +128,18 @@ ol.names a.rm { font-size: 11px; margin-left: 6px; }
 .status .small { font-weight: normal; }
 .st-on { color: #060; font-weight: bold; }
 .st-pending { color: #8a5a00; }
+.st-cancelled { color: #c00; font-weight: bold; }
+.status.cancelled { background: #ffd0d0; color: #900; }
+.status.big { font-size: 18px; border-width: 2px; margin-bottom: 14px; }
+.status.big a { font-size: 14px; }
+.was-list { color: #777; }
+.struck { text-decoration: line-through; }
+.repeat { font-size: 12px; white-space: nowrap; }
+.datebar { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 10px; }
+.datebar a, .datebar b { padding: 2px 8px; border: 2px solid; font-size: 13px; text-decoration: none; }
+.datebar a { border-color: var(--light) var(--dark) var(--dark) var(--light); background: var(--face); color: #000; }
+.datebar b { border-color: var(--dark) var(--light) var(--light) var(--dark); background: #fff; }
+.datebar .struck { color: #900; }
 
 /* ---------- join form: one box per person ---------- */
 fieldset.person { position: relative; margin: 0 0 8px; padding: 6px 10px 8px; border: 2px groove var(--light); }

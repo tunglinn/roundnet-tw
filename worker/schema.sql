@@ -14,9 +14,24 @@ CREATE TABLE IF NOT EXISTS events (
   contact     TEXT NOT NULL DEFAULT '',
   notes       TEXT NOT NULL DEFAULT '',
   edit_token  TEXT NOT NULL,
+  series_id   TEXT,                   -- set for weekly pickups (see series)
+  cancelled_at INTEGER,               -- pickups are cancelled, not deleted
+  cancel_reason TEXT NOT NULL DEFAULT '',
   created_at  INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_events_starts ON events (starts_ts);
+CREATE INDEX IF NOT EXISTS idx_events_series ON events (series_id, starts_ts);
+
+-- Weekly repeating pickups. Each date is its own events row; template is the JSON
+-- of everything but the date (lib/series.js templateFrom).
+CREATE TABLE IF NOT EXISTS series (
+  id          TEXT PRIMARY KEY,
+  template    TEXT NOT NULL,
+  until_date  TEXT,                   -- last date (YYYY-MM-DD), NULL = no end
+  edit_token  TEXT NOT NULL,          -- shared by all its dates
+  ended_at    INTEGER,
+  created_at  INTEGER NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS signups (
   id           TEXT PRIMARY KEY,

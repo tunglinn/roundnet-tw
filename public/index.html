@@ -39,7 +39,7 @@ sel.onchange = function () { location.search = sel.value ? '?city=' + sel.value 
 
 function statusHtml(ev) {
   var st = pickupStatus(ev);
-  return '<span class="small ' + (st.confirmed ? 'st-on' : 'st-pending') + '">' + esc(statusText(st, true)) + '</span>';
+  return '<span class="small ' + (st.cancelled ? 'st-cancelled' : st.confirmed ? 'st-on' : 'st-pending') + '">' + esc(statusText(st, true)) + '</span>';
 }
 
 api('/api/events' + (city ? '?city=' + encodeURIComponent(city) : '')).then(function (rows) {
@@ -51,11 +51,14 @@ api('/api/events' + (city ? '?city=' + encodeURIComponent(city) : '')).then(func
     '<table class="list"><tr>' +
       '<th>' + esc(t('col_when')) + '</th><th>' + esc(t('col_what')) + '</th>' +
       '<th class="hide-sm">' + esc(t('col_city')) + '</th><th>' + esc(t('col_players')) + '</th></tr>' +
-    rows.map(function (ev) {
+    collapseSeries(rows).map(function (ev) {
+      var link = '/event?id=' + esc(ev.id);
       return '<tr>' +
-        '<td class="nowrap">' + esc(fmtWhen(ev)) + '</td>' +
-        '<td><a href="/event?id=' + esc(ev.id) + '"><b>' + esc(ev.title) + '</b></a><br>' +
-          '<span class="small">' + esc(ev.place_name) + ' &middot; ' + esc(levelName(ev.level)) + '</span></td>' +
+        '<td class="nowrap' + (ev.cancelled_at ? ' struck' : '') + '">' + esc(fmtWhen(ev)) + '</td>' +
+        '<td><a href="' + link + '"><b' + (ev.cancelled_at ? ' class="struck"' : '') + '>' + esc(ev.title) + '</b></a>' +
+          (ev.series_id ? ' <span class="repeat">' + esc(weeklyLabel(ev)) + '</span>' : '') + '<br>' +
+          '<span class="small">' + esc(ev.place_name) + ' &middot; ' + esc(levelName(ev.level)) + '</span>' +
+          (ev.more ? '<br><a class="small" href="' + link + '">' + esc(moreText(ev.more)) + '</a>' : '') + '</td>' +
         '<td class="hide-sm">' + esc(cityName(ev.city)) + '</td>' +
         '<td>' + esc(playersText(ev.count, ev.max_players)) + '<br>' + statusHtml(ev) + '</td>' +
       '</tr>';

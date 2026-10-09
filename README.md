@@ -21,10 +21,14 @@ npm run deploy                              # creates the Pages project and uplo
 ```
 Then in the Cloudflare dashboard: Pages → roundnet-tw → Custom domains to attach your domain. If the D1 binding isn't picked up, add it under Settings → Bindings (variable name `DB`).
 
-Later deploys: `npm run deploy`. Schema changes: write the SQL and run it with `wrangler d1 execute roundnet-tw --remote`.
+Schema changes: run the new `worker/migrate_vN.sql` on production **before** pushing the code that uses it:
+```bash
+npx wrangler d1 execute roundnet-tw --remote --command="$(grep -v '^--' worker/migrate_vN.sql)"
+```
 
 ## How "no login" works
 - Creating a pickup returns a secret **edit link** (`/event?id=…&edit=TOKEN`). That device remembers it (localStorage); anyone with the link can edit or delete.
+- Pickups are **cancelled, never deleted**, once anyone has joined, so nobody is left wondering where a pickup went. Weekly pickups can be cancelled one date at a time, or ended after a given date.
 - Adding names gives each name a remove token stored on the device that added it. The organizer can remove any name.
 
 ## Ideas for later

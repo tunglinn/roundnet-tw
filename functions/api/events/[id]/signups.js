@@ -7,8 +7,9 @@ import { json, bad, readJson, newId, newToken } from '../../../../lib/http.js';
 // Each person becomes its own signup with its own remove_token (returned only here).
 // Names already on the list (case-insensitive) are skipped, which also absorbs double-submits.
 export async function onRequestPost({ params, request, env }) {
-  const ev = await env.DB.prepare('SELECT id FROM events WHERE id = ?').bind(params.id).first();
+  const ev = await env.DB.prepare('SELECT id, cancelled_at FROM events WHERE id = ?').bind(params.id).first();
   if (!ev) return bad('err_not_found', 404);
+  if (ev.cancelled_at) return bad('err_cancelled', 409);
 
   const body = await readJson(request);
   const people = parsePeople(body && (body.people ?? body.names));

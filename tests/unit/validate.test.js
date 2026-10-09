@@ -45,6 +45,15 @@ describe('validateEvent', () => {
     expect(validateEvent({ ...good, level: 'pro' }, NOW).errors).toEqual(['err_level']);
   });
 
+  it('validates weekly repeat and end date', () => {
+    expect(validateEvent(good, NOW).value.repeat).toBe('none');
+    expect(validateEvent({ ...good, repeat: 'weekly', until: '2026-12-31' }, NOW).value.until).toBe('2026-12-31');
+    expect(validateEvent({ ...good, repeat: 'daily' }, NOW).errors).toEqual(['err_repeat']);
+    expect(validateEvent({ ...good, repeat: 'weekly', until: '2026-10-01' }, NOW).errors).toEqual(['err_until']);
+    expect(validateEvent({ ...good, repeat: 'weekly', until: '2028-01-01' }, NOW).errors).toEqual(['err_until']);
+    expect(validateEvent({ ...good, repeat: 'none', until: '2026-12-31' }, NOW).value.until).toBeNull();
+  });
+
   it('validates players needed to confirm', () => {
     expect(validateEvent(good, NOW).value.min_players).toBeNull();
     expect(validateEvent({ ...good, min_players: '6' }, NOW).value.min_players).toBe(6);

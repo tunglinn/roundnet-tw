@@ -6,7 +6,7 @@ export async function onRequestGet({ request, env, next }) {
   if (!id || !res.ok) return res;
 
   const ev = await env.DB.prepare(
-    `SELECT title, starts_at, ends_at, place_name,
+    `SELECT title, starts_at, ends_at, place_name, cancelled_at,
             (SELECT COUNT(*) FROM signups s WHERE s.event_id = events.id) AS count
      FROM events WHERE id = ?`
   ).bind(id).first();
@@ -15,11 +15,12 @@ export async function onRequestGet({ request, env, next }) {
   const when = ev.starts_at.slice(5, 10).replace('-', '/') + ' ' + ev.starts_at.slice(11, 16) +
     (ev.ends_at ? '–' + ev.ends_at.slice(11, 16) : '');
   const desc = `${when} · ${ev.place_name} · ${ev.count} going / 人參加`;
+  const title = (ev.cancelled_at ? '[CANCELLED 已取消] ' : '') + ev.title;
 
   return new HTMLRewriter()
-    .on('meta[property="og:title"]', { element: (el) => el.setAttribute('content', ev.title) })
+    .on('meta[property="og:title"]', { element: (el) => el.setAttribute('content', title) })
     .on('meta[property="og:description"]', { element: (el) => el.setAttribute('content', desc) })
     .on('meta[name="description"]', { element: (el) => el.setAttribute('content', desc) })
-    .on('title', { element: (el) => el.setInnerContent(`${ev.title} · Roundnet Taiwan`) })
+    .on('title', { element: (el) => el.setInnerContent(`${title} · Roundnet Taiwan`) })
     .transform(res);
 }

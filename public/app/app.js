@@ -47,20 +47,22 @@ function taipeiToday() {
 function playersText(count, max) { return max ? count + ' / ' + max : String(count); }
 
 // A pickup is confirmed once someone brings a net, someone brings balls and,
-// if min_players is set, at least that many have joined.
-// ev needs: count, min_players, has_net, has_balls.
+// if min_players is set, at least that many have joined. Cancelled overrides everything.
+// ev needs: count, min_players, has_net, has_balls, cancelled_at.
 function pickupStatus(ev) {
   var st = {
+    cancelled: !!ev.cancelled_at,
     needPlayers: ev.min_players ? Math.max(0, ev.min_players - ev.count) : 0,
     needNet: !ev.has_net,
     needBalls: !ev.has_balls
   };
-  st.confirmed = !st.needPlayers && !st.needNet && !st.needBalls;
+  st.confirmed = !st.cancelled && !st.needPlayers && !st.needNet && !st.needBalls;
   return st;
 }
 
 // "On ✔" / "Confirmed: it's on!" or "2 more players needed · needs a net"
 function statusText(st, short) {
+  if (st.cancelled) return t('cancelled');
   if (st.confirmed) return t(short ? 'st_on_short' : 'st_on');
   var parts = [];
   if (st.needPlayers) parts.push(st.needPlayers === 1 ? t('need_1') : t('need_n').replace('{n}', st.needPlayers));
@@ -68,6 +70,28 @@ function statusText(st, short) {
   if (st.needBalls) parts.push(t('need_balls'));
   return parts.join(' · ');
 }
+
+// "🔁 Every Saturday" / "🔁 每星期六"
+function weeklyLabel(ev) {
+  var day = new Date(ev.starts_at).toLocaleDateString(LANG === 'zh' ? 'zh-TW' : 'en-US',
+    { timeZone: 'Asia/Taipei', weekday: 'long' });
+  return '🔁 ' + t('every').replace('{day}', day);
+}
+
+// Keep only the next date of each weekly series; adds `more` = number of later dates hidden.
+// rows must be sorted by start time.
+function collapseSeries(rows) {
+  var first = {};
+  return rows.filter(function (ev) {
+    if (!ev.series_id) return true;
+    if (first[ev.series_id]) { first[ev.series_id].more++; return false; }
+    first[ev.series_id] = ev;
+    ev.more = 0;
+    return true;
+  });
+}
+
+function moreText(n) { return n === 1 ? t('more_1') : t('more_n').replace('{n}', n); }
 
 function errText(err) {
   return ((err && err.errors) || ['error']).map(t).join(' ');

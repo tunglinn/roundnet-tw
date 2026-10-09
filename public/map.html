@@ -33,7 +33,7 @@ var map = makeMap('map');
 api('/api/events').then(function (rows) {
   // Group pickups at the same spot into one dot.
   var spots = {};
-  rows.forEach(function (ev) {
+  collapseSeries(rows).forEach(function (ev) {
     var key = ev.lat.toFixed(4) + ',' + ev.lng.toFixed(4);
     (spots[key] = spots[key] || []).push(ev);
   });
@@ -45,7 +45,8 @@ api('/api/events').then(function (rows) {
     dot(ll).addTo(map).bindPopup(
       '<b>' + esc(evs[0].place_name) + '</b><br>' +
       evs.map(function (ev) {
-        return '<a href="/event?id=' + esc(ev.id) + '">' + esc(ev.title) + '</a><br>' +
+        return '<a href="/event?id=' + esc(ev.id) + '"' + (ev.cancelled_at ? ' class="struck"' : '') + '>' + esc(ev.title) + '</a>' +
+          (ev.series_id ? ' <span class="repeat">' + esc(weeklyLabel(ev)) + '</span>' : '') + '<br>' +
           '<span class="small">' + esc(fmtWhen(ev)) + ' &middot; ' + esc(t('col_players')) + ': ' +
           esc(playersText(ev.count, ev.max_players)) + ' &middot; ' +
           esc(statusText(pickupStatus(ev), true)) + '</span>';

@@ -43,7 +43,7 @@ function load() {
 }
 
 function nameItem(s) {
-  var canRemove = token || storeGet('rm:' + s.id);
+  var canRemove = !current.cancelled_at && (token || storeGet('rm:' + s.id));
   return '<li data-sid="' + esc(s.id) + '"><b>' + esc(s.name) + '</b>' +
     s.brings.map(function (g) { return '<span class="tag">' + esc(gearName(g)) + '</span>'; }).join('') +
     (s.note ? '<span class="pnote">“' + esc(s.note) + '”</span>' : '') +
@@ -100,14 +100,39 @@ function resetJoinForm() {
 // Full page on first load; afterwards only the list refreshes so a half-filled join form survives.
 function render(ev) {
   if ($('people')) return renderPeople(ev);
-  document.title = ev.title + ' · ' + t('site_title');
+  document.title = (ev.cancelled_at ? '[' + t('cancelled') + '] ' : '') + ev.title + ' · ' + t('site_title');
+  // One edit token covers every date of a weekly series.
+  if (ev.series_id) {
+    if (!token) token = storeGet('edit-series:' + ev.series_id);
+    if (token) { storeSet('edit-series:' + ev.series_id, token); storeSet('edit:' + id, token); }
+  }
+  var datebar = ev.series ? '<div class="datebar">' + ev.series.dates.map(function (d) {
+    var label = esc(d.starts_at.slice(5, 10).replace('-', '/'));
+    var cls = d.cancelled_at ? ' class="struck"' : '';
+    return d.id === ev.id ? '<b' + cls + '>' + label + '</b>' : '<a href="/event?id=' + esc(d.id) + '"' + cls + '>' + label + '</a>';
+  }).join('') + '</div>' : '';
+  var repeatRow = ev.series ? '<tr><th>' + esc(t('d_repeat')) + '</th><td>' + esc(weeklyLabel(ev)) +
+    (ev.series.until_date ? ', ' + esc(t('until_date').replace('{date}', ev.series.until_date.slice(5).replace('-', '/'))) : '') +
+    '</td></tr>' : '';
   var publicLink = location.origin + '/event?id=' + encodeURIComponent(id);
   var gmaps = 'https://www.google.com/maps/search/?api=1&query=' + ev.lat + ',' + ev.lng;
 
+  var next = ev.cancelled_at && ev.series && ev.series.dates.filter(function (d) {
+    return !d.cancelled_at && d.starts_at > ev.starts_at;
+  })[0];
   var html =
-    '<div class="win"><div class="bar">' + esc(ev.title) + '</div><div class="body">' +
+    (ev.cancelled_at
+      ? '<div class="status cancelled big">✖ ' + esc(t('cancelled_banner')) +
+          (ev.cancel_reason ? ': ' + esc(ev.cancel_reason) : '') +
+          (next ? '<br><a href="/event?id=' + esc(next.id) + '">' + esc(t('next_date')) + ': ' + esc(fmtWhen(next)) + ' →</a>' : '') +
+        '</div>'
+      : '') +
+    '<div class="win"><div class="bar">' + esc(ev.title) + (ev.cancelled_at ? ' (' + esc(t('cancelled')) + ')' : '') +
+      '</div><div class="body">' +
+      datebar +
       '<table class="info">' +
-        '<tr><th>' + esc(t('d_when')) + '</th><td>' + esc(fmtWhen(ev)) + '</td></tr>' +
+        '<tr><th>' + esc(t('d_when')) + '</th><td' + (ev.cancelled_at ? ' class="struck"' : '') + '>' + esc(fmtWhen(ev)) + '</td></tr>' +
+        repeatRow +
         '<tr><th>' + esc(t('d_where')) + '</th><td>' + esc(ev.place_name) + ', ' + esc(cityName(ev.city)) +
           '<br><a href="' + gmaps + '" target="_blank" rel="noopener">' + esc(t('open_maps')) + '</a></td></tr>' +
         '<tr><th>' + esc(t('d_level')) + '</th><td>' + esc(levelName(ev.level)) + '</td></tr>' +
@@ -121,15 +146,15 @@ function render(ev) {
     '<div class="win"><div class="bar" id="goingbar"></div><div class="body">' +
       '<div id="status"></div>' +
       '<div class="inset" id="people"></div>' +
-      '<p class="small">' + esc(t('remove_hint')) + (ev.contact ? ': ' + esc(ev.contact) : '.') + '</p>' +
-      '<form id="join" style="margin-top:12px">' +
+      (ev.cancelled_at ? '' : '<p class="small">' + esc(t('remove_hint')) + (ev.contact ? ': ' + esc(ev.contact) : '.') + '</p>') +
+      (ev.cancelled_at ? '' : '<form id="join" style="margin-top:12px">' +
         '<label>' + esc(t('join_title')) + '</label>' +
         '<div class="small" style="margin-bottom:6px">' + esc(t('join_help')) + '</div>' +
         '<div id="people-rows"></div>' +
         '<a href="#" class="addfriend" id="addfriend">' + esc(t('add_friend')) + '</a>' +
         '<button type="submit" class="joinbtn" id="joinbtn"></button>' +
         '<div id="joinmsg"></div>' +
-      '</form>' +
+      '</form>') +
     '</div></div>' +
 
     '<div class="win"><div class="bar">' + esc(t('share')) + '</div><div class="body">' +
@@ -146,17 +171,26 @@ function render(ev) {
         '<button type="button" onclick="copyText($(\'editlink\'), this)">' + esc(t('btn_copy')) + '</button></div>' +
         '<div class="actions">' +
           '<a class="btn" href="/new?id=' + encodeURIComponent(id) + '">' + esc(t('btn_edit')) + '</a>' +
-          '<button type="button" class="danger" onclick="deleteEvent()">' + esc(t('btn_delete')) + '</button>' +
+          (ev.cancelled_at
+            ? '<button type="button" onclick="restorePickup()">' + esc(t('btn_restore')) + '</button>'
+            : '<button type="button" class="danger" onclick="cancelPickup()">' + esc(t('btn_cancel_pickup')) + '</button>') +
+          (ev.series && !ev.series.ended
+            ? '<button type="button" class="danger" onclick="endSeries()">' + esc(t('btn_end_series')) + '</button>' : '') +
+          (!ev.series_id && !ev.signups.length
+            ? '<button type="button" class="danger" onclick="deleteEvent()">' + esc(t('btn_delete')) + '</button>' : '') +
         '</div>' +
+        (ev.series_id || ev.signups.length ? '<p class="small">' + esc(t('delete_help')) + '</p>' : '') +
       '</div></div>';
   }
 
   $('content').innerHTML = html;
   renderPeople(ev);
-  resetJoinForm();
 
   map = makeMap('map', [ev.lat, ev.lng], 15);
   dot([ev.lat, ev.lng]).addTo(map);
+
+  if (!$('join')) return;  // cancelled: no joining
+  resetJoinForm();
 
   $('addfriend').onclick = function (e) {
     e.preventDefault();
@@ -195,6 +229,15 @@ function renderPeople(ev) {
   var gear = GEAR.filter(function (g) { return counts[g]; })
     .map(function (g) { return esc(gearName(g)) + (counts[g] > 1 ? ' ×' + counts[g] : ''); }).join(' · ');
 
+  if (ev.cancelled_at) {
+    // Banner at the top says it's cancelled; just show who had signed up, greyed out.
+    $('goingbar').textContent = t('had_signed_up') + ' (' + ev.signups.length + ')';
+    $('status').innerHTML = '';
+    $('people').innerHTML = ev.signups.length
+      ? '<ol class="names was-list">' + ev.signups.map(nameItem).join('') + '</ol>'
+      : '—';
+    return;
+  }
   $('goingbar').textContent = t('going') + ' (' + playersText(going.length, max) + ')';
   var st = pickupStatus({ count: going.length, min_players: ev.min_players, has_net: counts.net, has_balls: counts.balls });
   $('status').innerHTML = st.confirmed
@@ -246,6 +289,24 @@ function removeName(sid) {
   api('/api/signups/' + encodeURIComponent(sid), { method: 'DELETE', headers: signupHeaders(sid) })
     .then(function () { storeDel('rm:' + sid); return load(); })
     .catch(function (err) { alert(errText(err)); });
+}
+
+function organizerPost(action, body) {
+  return api('/api/events/' + encodeURIComponent(id) + '/' + action, { method: 'POST', body: body || {}, headers: { 'x-edit-token': token } })
+    .then(function () { location.reload(); })
+    .catch(function (err) { alert(errText(err)); });
+}
+
+function cancelPickup() {
+  var reason = prompt(t('ask_reason'), '');
+  if (reason === null) return;  // pressed Cancel in the prompt
+  organizerPost('cancel', { reason: reason });
+}
+
+function restorePickup() { organizerPost('restore'); }
+
+function endSeries() {
+  if (confirm(t('confirm_end'))) organizerPost('end-series');
 }
 
 function deleteEvent() {
