@@ -9,6 +9,9 @@ var CITIES = [
 var LEVELS = ['any', 'beginner', 'intermediate', 'advanced'];
 var TW_CENTER = [23.7, 121.0];
 
+// Community LINE group/OpenChat invite link. Leave empty to hide the LINE button.
+var LINE_URL = 'http://line.me/R/ti/g/U4WJff_XbM';
+
 // ---------- DOM / text ----------
 
 function $(id) { return document.getElementById(id); }
@@ -118,7 +121,12 @@ function renderChrome() {
     '<div class="masthead">' +
       '<div><a class="logo" href="/"><span class="net"></span>' + esc(t('site_title')) + '</a>' +
       '<div class="tagline">' + esc(t('tagline')) + '</div></div>' +
-      '<div class="lang">' + lang + '</div>' +
+      '<div class="side"><div class="lang">' + lang + '</div>' +
+        (LINE_URL
+          ? '<a class="line" href="' + esc(LINE_URL) + '" target="_blank" rel="noopener" title="' + esc(t('line_join')) + '">' +
+              '<span class="line-icon" aria-hidden="true">LINE</span>' + esc(t('line_join')) + '</a>'
+          : '') +
+      '</div>' +
     '</div>' +
     '<div class="nav">[ ' + nav + ' ]</div>';
   $('ftr').innerHTML = '<hr>' + esc(t('footer')) +

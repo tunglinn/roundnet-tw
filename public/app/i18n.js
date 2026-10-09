@@ -6,6 +6,7 @@ var I18N = {
     tagline: 'Find a game. Bring friends. No login.',
     nav_events: 'Pickups', nav_map: 'Map', nav_new: '+ Add pickup',
     footer: 'Made for the Taiwan roundnet community.',
+    line_join: 'Join our LINE group',
     loading: 'Loading...', error: 'Something went wrong. Please try again.',
 
     upcoming: 'Upcoming pickups', all_cities: 'All cities',
@@ -73,6 +74,7 @@ var I18N = {
     tagline: '找場地、揪朋友，免登入。',
     nav_events: '揪團列表', nav_map: '地圖', nav_new: '+ 新增揪團',
     footer: '為台灣圓網球社群打造。',
+    line_join: '加入 LINE 群組',
     loading: '載入中…', error: '發生錯誤，請再試一次。',
 
     upcoming: '即將到來的揪團', all_cities: '所有縣市',
