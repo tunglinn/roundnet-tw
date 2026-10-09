@@ -69,10 +69,10 @@ var I18N = {
     city_other: 'Other'
   },
   zh: {
-    site_title: '台灣 Roundnet 揪團',
+    site_title: '台灣圓網球揪團',
     tagline: '找場地、揪朋友，免登入。',
     nav_events: '揪團列表', nav_map: '地圖', nav_new: '+ 新增揪團',
-    footer: '為台灣 Roundnet 社群打造。',
+    footer: '為台灣圓網球社群打造。',
     loading: '載入中…', error: '發生錯誤，請再試一次。',
 
     upcoming: '即將到來的揪團', all_cities: '所有縣市',
