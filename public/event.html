@@ -111,6 +111,7 @@ function render(ev) {
         '<tr><th>' + esc(t('d_where')) + '</th><td>' + esc(ev.place_name) + ', ' + esc(cityName(ev.city)) +
           '<br><a href="' + gmaps + '" target="_blank" rel="noopener">' + esc(t('open_maps')) + '</a></td></tr>' +
         '<tr><th>' + esc(t('d_level')) + '</th><td>' + esc(levelName(ev.level)) + '</td></tr>' +
+        (ev.min_players ? '<tr><th>' + esc(t('d_min')) + '</th><td>' + esc(t('n_players').replace('{n}', ev.min_players)) + '</td></tr>' : '') +
         (ev.contact ? '<tr><th>' + esc(t('d_contact')) + '</th><td>' + esc(ev.contact) + '</td></tr>' : '') +
         (ev.notes ? '<tr><th>' + esc(t('d_notes')) + '</th><td class="pre">' + esc(ev.notes) + '</td></tr>' : '') +
       '</table>' +
@@ -118,6 +119,7 @@ function render(ev) {
     '</div></div>' +
 
     '<div class="win"><div class="bar" id="goingbar"></div><div class="body">' +
+      '<div id="status"></div>' +
       '<div class="inset" id="people"></div>' +
       '<p class="small">' + esc(t('remove_hint')) + (ev.contact ? ': ' + esc(ev.contact) : '.') + '</p>' +
       '<form id="join" style="margin-top:12px">' +
@@ -194,13 +196,17 @@ function renderPeople(ev) {
     .map(function (g) { return esc(gearName(g)) + (counts[g] > 1 ? ' ×' + counts[g] : ''); }).join(' · ');
 
   $('goingbar').textContent = t('going') + ' (' + playersText(going.length, max) + ')';
+  var st = pickupStatus({ count: going.length, min_players: ev.min_players, has_net: counts.net, has_balls: counts.balls });
+  $('status').innerHTML = st.confirmed
+    ? '<div class="status on">✔ ' + esc(statusText(st)) + '</div>'
+    : '<div class="status pending">⏳ ' + esc(t('st_pending')) + ': <span class="small">' + esc(statusText(st)) + '</span></div>';
   $('people').innerHTML =
     (going.length ? '<ol class="names">' + going.map(nameItem).join('') + '</ol>' : esc(t('nobody'))) +
     (waiting.length ? '<p style="margin:8px 0 2px"><b>' + esc(t('waitlist')) + ' (' + waiting.length + ')</b></p>' +
       '<ol class="names" start="' + (going.length + 1) + '">' + waiting.map(nameItem).join('') + '</ol>' : '') +
     (ev.signups.length
       ? '<div class="gear"><b>' + esc(t('gear_summary')) + ':</b> ' + (gear || esc(t('gear_none'))) +
-        (counts.net ? '' : ' <span class="warn">' + esc(t('no_net')) + '</span>') + '</div>'
+        '</div>'
       : '');
 }
 

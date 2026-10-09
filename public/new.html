@@ -35,6 +35,10 @@
         <div><label for="max" data-i18n="f_max"></label><input type="number" id="max" min="2" max="100" style="width:7em"></div>
       </div>
 
+      <label for="min" data-i18n="f_min"></label>
+      <input type="number" id="min" min="2" max="100" style="width:7em">
+      <div class="small" data-i18n="min_help"></div>
+
       <label><span data-i18n="f_pin"></span> &nbsp; <span id="pinstate" class="small"></span></label>
       <div id="map" class="map small"></div>
       <p class="small"><button type="button" id="locate" data-i18n="f_mylocation"></button></p>
@@ -101,6 +105,7 @@ if (editId && token) {
     $('city').value = ev.city;
     $('level').value = ev.level;
     $('max').value = ev.max_players || '';
+    $('min').value = ev.min_players || '';
     $('contact').value = ev.contact;
     $('notes').value = ev.notes;
     setPin([ev.lat, ev.lng]);
@@ -114,7 +119,7 @@ $('form').onsubmit = function (e) {
   var body = {
     title: $('title').value, date: $('date').value, start: $('start').value, end: $('end').value,
     place_name: $('place').value, city: $('city').value, level: $('level').value,
-    max_players: $('max').value, contact: $('contact').value, notes: $('notes').value,
+    max_players: $('max').value, min_players: $('min').value, contact: $('contact').value, notes: $('notes').value,
     lat: ll ? ll.lat : '', lng: ll ? ll.lng : ''
   };
   $('submit').disabled = true;

@@ -2,7 +2,7 @@ import { validateEvent } from '../../../lib/validate.js';
 import { json, bad, readJson } from '../../../lib/http.js';
 
 const PUBLIC_COLS = `id, title, starts_at, ends_at, place_name, city, lat, lng, level,
-                     max_players, contact, notes, created_at`;
+                     max_players, min_players, contact, notes, created_at`;
 
 // Returns null if ok, otherwise an error Response.
 async function checkOrganizer(request, env, id) {
@@ -35,10 +35,10 @@ export async function onRequestPut({ params, request, env }) {
 
   await env.DB.prepare(
     `UPDATE events SET title = ?, starts_at = ?, ends_at = ?, starts_ts = ?, place_name = ?, city = ?,
-                       lat = ?, lng = ?, level = ?, max_players = ?, contact = ?, notes = ?
+                       lat = ?, lng = ?, level = ?, max_players = ?, min_players = ?, contact = ?, notes = ?
      WHERE id = ?`
   ).bind(v.title, v.starts_at, v.ends_at, v.starts_ts, v.place_name, v.city, v.lat, v.lng,
-         v.level, v.max_players, v.contact, v.notes, params.id).run();
+         v.level, v.max_players, v.min_players, v.contact, v.notes, params.id).run();
   return json({ ok: true });
 }
 

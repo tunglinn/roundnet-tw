@@ -46,6 +46,29 @@ function taipeiToday() {
 
 function playersText(count, max) { return max ? count + ' / ' + max : String(count); }
 
+// A pickup is confirmed once someone brings a net, someone brings balls and,
+// if min_players is set, at least that many have joined.
+// ev needs: count, min_players, has_net, has_balls.
+function pickupStatus(ev) {
+  var st = {
+    needPlayers: ev.min_players ? Math.max(0, ev.min_players - ev.count) : 0,
+    needNet: !ev.has_net,
+    needBalls: !ev.has_balls
+  };
+  st.confirmed = !st.needPlayers && !st.needNet && !st.needBalls;
+  return st;
+}
+
+// "On ✔" / "Confirmed: it's on!" or "2 more players needed · needs a net"
+function statusText(st, short) {
+  if (st.confirmed) return t(short ? 'st_on_short' : 'st_on');
+  var parts = [];
+  if (st.needPlayers) parts.push(st.needPlayers === 1 ? t('need_1') : t('need_n').replace('{n}', st.needPlayers));
+  if (st.needNet) parts.push(t('need_net'));
+  if (st.needBalls) parts.push(t('need_balls'));
+  return parts.join(' · ');
+}
+
 function errText(err) {
   return ((err && err.errors) || ['error']).map(t).join(' ');
 }

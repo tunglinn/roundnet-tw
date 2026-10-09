@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS events (
   lng         REAL NOT NULL,
   level       TEXT NOT NULL DEFAULT 'any',
   max_players INTEGER,
+  min_players INTEGER,                -- needed to confirm; NULL = happens regardless (still needs net + balls)
   contact     TEXT NOT NULL DEFAULT '',
   notes       TEXT NOT NULL DEFAULT '',
   edit_token  TEXT NOT NULL,

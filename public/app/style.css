@@ -122,6 +122,12 @@ ol.names a.rm { font-size: 11px; margin-left: 6px; }
 .pnote { font-size: 12px; color: #333; font-style: italic; margin-left: 4px; }
 .gear { margin-top: 8px; padding-top: 6px; border-top: 1px dotted #999; font-size: 13px; }
 .warn { color: #c00; font-weight: bold; }
+.status { border: 1px solid #000; padding: 6px 8px; margin-bottom: 8px; font-weight: bold; }
+.status.on { background: #b6f5b6; }
+.status.pending { background: var(--note); }
+.status .small { font-weight: normal; }
+.st-on { color: #060; font-weight: bold; }
+.st-pending { color: #8a5a00; }
 
 /* ---------- join form: one box per person ---------- */
 fieldset.person { position: relative; margin: 0 0 8px; padding: 6px 10px 8px; border: 2px groove var(--light); }

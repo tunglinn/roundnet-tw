@@ -37,6 +37,11 @@ sel.innerHTML = '<option value="">' + esc(t('all_cities')) + '</option>' +
 sel.value = city;
 sel.onchange = function () { location.search = sel.value ? '?city=' + sel.value : ''; };
 
+function statusHtml(ev) {
+  var st = pickupStatus(ev);
+  return '<span class="small ' + (st.confirmed ? 'st-on' : 'st-pending') + '">' + esc(statusText(st, true)) + '</span>';
+}
+
 api('/api/events' + (city ? '?city=' + encodeURIComponent(city) : '')).then(function (rows) {
   if (!rows.length) {
     $('list').innerHTML = '<p style="padding:8px">' + esc(t('none')) + ' <a href="/new">' + esc(t('nav_new')) + '</a></p>';
@@ -52,7 +57,7 @@ api('/api/events' + (city ? '?city=' + encodeURIComponent(city) : '')).then(func
         '<td><a href="/event?id=' + esc(ev.id) + '"><b>' + esc(ev.title) + '</b></a><br>' +
           '<span class="small">' + esc(ev.place_name) + ' &middot; ' + esc(levelName(ev.level)) + '</span></td>' +
         '<td class="hide-sm">' + esc(cityName(ev.city)) + '</td>' +
-        '<td class="nowrap">' + esc(playersText(ev.count, ev.max_players)) + '</td>' +
+        '<td>' + esc(playersText(ev.count, ev.max_players)) + '<br>' + statusHtml(ev) + '</td>' +
       '</tr>';
     }).join('') + '</table>';
 }).catch(function (err) {

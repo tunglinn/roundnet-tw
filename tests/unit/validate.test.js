@@ -45,6 +45,14 @@ describe('validateEvent', () => {
     expect(validateEvent({ ...good, level: 'pro' }, NOW).errors).toEqual(['err_level']);
   });
 
+  it('validates players needed to confirm', () => {
+    expect(validateEvent(good, NOW).value.min_players).toBeNull();
+    expect(validateEvent({ ...good, min_players: '6' }, NOW).value.min_players).toBe(6);
+    expect(validateEvent({ ...good, min_players: '1' }, NOW).errors).toEqual(['err_min']);
+    expect(validateEvent({ ...good, min_players: '10', max_players: '8' }, NOW).errors).toEqual(['err_min']);
+    expect(validateEvent({ ...good, min_players: '8', max_players: '8' }, NOW).errors).toEqual([]);
+  });
+
   it('trims text and enforces length caps', () => {
     expect(validateEvent({ ...good, title: '  Hi  ' }, NOW).value.title).toBe('Hi');
     expect(validateEvent({ ...good, title: 'x'.repeat(81) }, NOW).errors).toEqual(['err_title']);

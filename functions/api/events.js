@@ -6,8 +6,12 @@ export async function onRequestGet({ request, env }) {
   const city = new URL(request.url).searchParams.get('city');
   const args = [Date.now() - 3 * 3600 * 1000];
   let sql = `SELECT e.id, e.title, e.starts_at, e.ends_at, e.place_name, e.city, e.lat, e.lng,
-                    e.level, e.max_players,
-                    (SELECT COUNT(*) FROM signups s WHERE s.event_id = e.id) AS count
+                    e.level, e.max_players, e.min_players,
+                    (SELECT COUNT(*) FROM signups s WHERE s.event_id = e.id) AS count,
+                    EXISTS (SELECT 1 FROM signups s WHERE s.event_id = e.id
+                            AND ',' || s.brings || ',' LIKE '%,net,%') AS has_net,
+                    EXISTS (SELECT 1 FROM signups s WHERE s.event_id = e.id
+                            AND ',' || s.brings || ',' LIKE '%,balls,%') AS has_balls
              FROM events e WHERE e.starts_ts >= ?`;
   if (city) {
     sql += ' AND e.city = ?';
@@ -29,10 +33,10 @@ export async function onRequestPost({ request, env }) {
   const edit_token = newToken();
   await env.DB.prepare(
     `INSERT INTO events (id, title, starts_at, ends_at, starts_ts, place_name, city, lat, lng,
-                         level, max_players, contact, notes, edit_token, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                         level, max_players, min_players, contact, notes, edit_token, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(id, v.title, v.starts_at, v.ends_at, v.starts_ts, v.place_name, v.city, v.lat, v.lng,
-         v.level, v.max_players, v.contact, v.notes, edit_token, Date.now()).run();
+         v.level, v.max_players, v.min_players, v.contact, v.notes, edit_token, Date.now()).run();
 
   return json({ id, edit_token }, 201);
 }

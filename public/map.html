@@ -47,7 +47,8 @@ api('/api/events').then(function (rows) {
       evs.map(function (ev) {
         return '<a href="/event?id=' + esc(ev.id) + '">' + esc(ev.title) + '</a><br>' +
           '<span class="small">' + esc(fmtWhen(ev)) + ' &middot; ' + esc(t('col_players')) + ': ' +
-          esc(playersText(ev.count, ev.max_players)) + '</span>';
+          esc(playersText(ev.count, ev.max_players)) + ' &middot; ' +
+          esc(statusText(pickupStatus(ev), true)) + '</span>';
       }).join('<hr>')
     );
   });
