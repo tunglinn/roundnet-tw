@@ -7,5 +7,6 @@ Roundnet pickup tracker for Taiwan. No login, bilingual (en / zh-TW), old-school
 - `lib/validate.js` is pure server validation, unit-tested in `tests/unit/`. Errors are i18n keys (`err_*`) that the client shows via `t()`.
 - Every UI string goes through `t()` and needs both `en` and `zh` entries. `CITIES` is duplicated in `lib/validate.js` and `public/app/app.js`, so keep them in sync.
 - Secrets: events have `edit_token` (header `x-edit-token`) and signups have `remove_token` (header `x-remove-token`). Never select them in GET responses.
+- Signups have `brings` (comma-separated `GEAR` keys; `GEAR` is duplicated in `lib/validate.js` and `public/app/app.js`) and `note`. Schema changes: update `worker/schema.sql` for new installs **and** add a `worker/migrate_vN.sql` for existing DBs, applied by hand (local and `--remote`) before deploying code that uses it.
 - Times are stored as Taipei local ISO strings (`+08:00`) plus `starts_ts` (ms) for queries.
 - Commands: `npm run dev`, `npm test`, `npm run db -- "<SQL>"`, `npm run db:init`, `npm run deploy`.

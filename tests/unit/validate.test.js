@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validateEvent, parseNames } from '../../lib/validate.js';
+import { validateEvent, parseNames, parsePeople } from '../../lib/validate.js';
 
 const NOW = Date.parse('2026-10-09T12:00:00+08:00');
 const good = {
@@ -66,5 +66,31 @@ describe('parseNames', () => {
     expect(parseNames(Array.from({ length: 30 }, (_, i) => 'p' + i))).toHaveLength(20);
     expect(parseNames(undefined)).toEqual([]);
     expect(parseNames(' , ,, ')).toEqual([]);
+  });
+});
+
+describe('parsePeople', () => {
+  it('keeps only known gear, trims notes, dedupes names', () => {
+    expect(parsePeople([
+      { name: ' Tung ', brings: ['net', 'balls', 'pizza'], note: '  arrive   ~3pm ' },
+      { name: 'tung', brings: ['cones'] },
+      { name: 'Amy', brings: 'net' },
+      { name: '' },
+      null,
+    ])).toEqual([
+      { name: 'Tung', brings: ['net', 'balls'], note: 'arrive ~3pm' },
+      { name: 'Amy', brings: [], note: '' },
+    ]);
+  });
+
+  it('caps note length', () => {
+    expect(parsePeople([{ name: 'A', note: 'x'.repeat(150) }])[0].note).toHaveLength(100);
+  });
+
+  it('falls back to comma-separated names', () => {
+    expect(parsePeople('Tung, Amy')).toEqual([
+      { name: 'Tung', brings: [], note: '' },
+      { name: 'Amy', brings: [], note: '' },
+    ]);
   });
 });

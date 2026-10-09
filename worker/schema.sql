@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS signups (
   id           TEXT PRIMARY KEY,
   event_id     TEXT NOT NULL REFERENCES events (id) ON DELETE CASCADE,
   name         TEXT NOT NULL,
+  brings       TEXT NOT NULL DEFAULT '',   -- comma-separated gear keys, e.g. "net,balls"
+  note         TEXT NOT NULL DEFAULT '',
   remove_token TEXT NOT NULL,
   created_at   INTEGER NOT NULL
 );

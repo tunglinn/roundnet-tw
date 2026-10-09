@@ -7,6 +7,7 @@ var CITIES = [
   'yilan', 'hualien', 'taitung', 'penghu', 'kinmen', 'matsu', 'other'
 ];
 var LEVELS = ['any', 'beginner', 'intermediate', 'advanced'];
+var GEAR = ['net', 'balls', 'chalk', 'lines', 'cones'];  // keep in sync with lib/validate.js
 var TW_CENTER = [23.7, 121.0];
 
 // Community LINE group/OpenChat invite link. Leave empty to hide the LINE button.
@@ -26,6 +27,7 @@ function param(name) { return new URLSearchParams(location.search).get(name); }
 
 function cityName(c) { return t('city_' + c); }
 function levelName(l) { return t('lvl_' + l); }
+function gearName(g) { return t('gear_' + g); }
 
 // "Sat 10/12 14:00–16:00" / "10/12（週六） 14:00–16:00", always Taipei time.
 function fmtWhen(ev) {

@@ -33,6 +33,7 @@ if (param('edit')) storeSet('edit:' + id, param('edit'));
 if (param('edit') || isNew) history.replaceState(null, '', '/event?id=' + encodeURIComponent(id));
 var token = storeGet('edit:' + id);
 var map = null;
+var current = null;  // latest event data, for [edit]
 
 function load() {
   return api('/api/events/' + encodeURIComponent(id)).then(render).catch(function (err) {
@@ -43,16 +44,63 @@ function load() {
 
 function nameItem(s) {
   var canRemove = token || storeGet('rm:' + s.id);
-  return '<li>' + esc(s.name) +
-    (canRemove ? ' <a href="#" class="rm" onclick="removeName(\'' + esc(s.id) + '\');return false">[' + esc(t('remove')) + ']</a>' : '') +
+  return '<li data-sid="' + esc(s.id) + '"><b>' + esc(s.name) + '</b>' +
+    s.brings.map(function (g) { return '<span class="tag">' + esc(gearName(g)) + '</span>'; }).join('') +
+    (s.note ? '<span class="pnote">“' + esc(s.note) + '”</span>' : '') +
+    (canRemove
+      ? ' <a href="#" class="rm" onclick="editName(\'' + esc(s.id) + '\');return false">[' + esc(t('edit')) + ']</a>' +
+        '<a href="#" class="rm" onclick="removeName(\'' + esc(s.id) + '\');return false">[' + esc(t('remove')) + ']</a>'
+      : '') +
     '</li>';
 }
 
+// One box per person: name, gear checkboxes, note. Used by the join form and by [edit].
+// person (optional) prefills it.
+function personRow(first, person) {
+  var box = document.createElement('fieldset');
+  box.className = 'person';
+  box.innerHTML =
+    (first ? '' : '<button type="button" class="x" title="' + esc(t('remove_row')) + '">×</button>') +
+    '<label>' + esc(t('f_name')) + '<input type="text" class="p-name" maxlength="40"></label>' +
+    '<div class="gearpick"><span class="small">' + esc(t('f_bringing')) + ':</span> ' +
+      GEAR.map(function (g) {
+        return '<label class="chk"><input type="checkbox" value="' + g + '"> ' + esc(gearName(g)) + '</label>';
+      }).join('') +
+    '</div>' +
+    '<label>' + esc(t('f_note')) + '<input type="text" class="p-note" maxlength="100" placeholder="' + esc(t('ph_note')) + '"></label>';
+  if (!first) box.querySelector('.x').onclick = function () { box.remove(); updateJoinCount(); };
+  if (person) {
+    box.querySelector('.p-name').value = person.name;
+    box.querySelector('.p-note').value = person.note;
+    box.querySelectorAll('.gearpick input').forEach(function (c) { c.checked = person.brings.indexOf(c.value) >= 0; });
+  }
+  return box;
+}
+
+function readPerson(box) {
+  return {
+    name: box.querySelector('.p-name').value,
+    note: box.querySelector('.p-note').value,
+    brings: Array.prototype.filter.call(box.querySelectorAll('.gearpick input'), function (c) { return c.checked; })
+      .map(function (c) { return c.value; })
+  };
+}
+
+function updateJoinCount() {
+  var n = $('people-rows').querySelectorAll('fieldset.person').length;
+  $('joinbtn').textContent = n === 1 ? t('btn_join_1') : t('btn_join_n').replace('{n}', n);
+}
+
+function resetJoinForm() {
+  $('people-rows').innerHTML = '';
+  $('people-rows').appendChild(personRow(true));
+  updateJoinCount();
+}
+
+// Full page on first load; afterwards only the list refreshes so a half-filled join form survives.
 function render(ev) {
+  if ($('people')) return renderPeople(ev);
   document.title = ev.title + ' · ' + t('site_title');
-  var max = ev.max_players;
-  var going = max ? ev.signups.slice(0, max) : ev.signups;
-  var waiting = max ? ev.signups.slice(max) : [];
   var publicLink = location.origin + '/event?id=' + encodeURIComponent(id);
   var gmaps = 'https://www.google.com/maps/search/?api=1&query=' + ev.lat + ',' + ev.lng;
 
@@ -69,17 +117,15 @@ function render(ev) {
       '<div id="map" class="map small" style="margin-top:8px"></div>' +
     '</div></div>' +
 
-    '<div class="win"><div class="bar">' + esc(t('going')) + ' (' + esc(playersText(going.length, max)) + ')</div><div class="body">' +
-      '<div class="inset">' +
-        (going.length ? '<ol class="names">' + going.map(nameItem).join('') + '</ol>' : esc(t('nobody'))) +
-        (waiting.length ? '<p style="margin:8px 0 2px"><b>' + esc(t('waitlist')) + ' (' + waiting.length + ')</b></p>' +
-          '<ol class="names" start="' + (going.length + 1) + '">' + waiting.map(nameItem).join('') + '</ol>' : '') +
-      '</div>' +
+    '<div class="win"><div class="bar" id="goingbar"></div><div class="body">' +
+      '<div class="inset" id="people"></div>' +
+      '<p class="small">' + esc(t('remove_hint')) + (ev.contact ? ': ' + esc(ev.contact) : '.') + '</p>' +
       '<form id="join" style="margin-top:12px">' +
-        '<label for="names">' + esc(t('join_title')) + '</label>' +
-        '<div class="small" style="margin-bottom:4px">' + esc(t('join_help')) + '</div>' +
-        '<div class="copyrow"><input type="text" id="names" maxlength="600" placeholder="' + esc(t('ph_names')) + '">' +
-        '<button type="submit">' + esc(t('btn_add')) + '</button></div>' +
+        '<label>' + esc(t('join_title')) + '</label>' +
+        '<div class="small" style="margin-bottom:6px">' + esc(t('join_help')) + '</div>' +
+        '<div id="people-rows"></div>' +
+        '<a href="#" class="addfriend" id="addfriend">' + esc(t('add_friend')) + '</a>' +
+        '<button type="submit" class="joinbtn" id="joinbtn"></button>' +
         '<div id="joinmsg"></div>' +
       '</form>' +
     '</div></div>' +
@@ -103,42 +149,95 @@ function render(ev) {
       '</div></div>';
   }
 
-  var typed = $('names') ? $('names').value : '';
   $('content').innerHTML = html;
-  $('names').value = typed;
+  renderPeople(ev);
+  resetJoinForm();
 
-  if (map) map.remove();
   map = makeMap('map', [ev.lat, ev.lng], 15);
   dot([ev.lat, ev.lng]).addTo(map);
 
+  $('addfriend').onclick = function (e) {
+    e.preventDefault();
+    var row = personRow(false);
+    $('people-rows').appendChild(row);
+    updateJoinCount();
+    row.querySelector('.p-name').focus();
+  };
+
   $('join').onsubmit = function (e) {
     e.preventDefault();
-    var btn = this.querySelector('button');
-    btn.disabled = true;
-    api('/api/events/' + encodeURIComponent(id) + '/signups', { method: 'POST', body: { names: $('names').value } })
+    var people = Array.prototype.map.call($('people-rows').querySelectorAll('fieldset.person'), readPerson);
+    $('joinbtn').disabled = true;
+    api('/api/events/' + encodeURIComponent(id) + '/signups', { method: 'POST', body: { people: people } })
       .then(function (res) {
         res.added.forEach(function (s) { storeSet('rm:' + s.id, s.remove_token); });
-        $('names').value = '';
+        resetJoinForm();
         return load().then(function () {
           var msg = res.added.length ? esc(t('added')) : '';
           if (res.skipped.length) msg += ' ' + esc(t('skipped')) + ' ' + esc(res.skipped.join(', '));
           showMsg($('joinmsg'), msg);
         });
       })
-      .catch(function (err) {
-        btn.disabled = false;
-        showMsg($('joinmsg'), esc(errText(err)), 'err');
-      });
+      .catch(function (err) { showMsg($('joinmsg'), esc(errText(err)), 'err'); })
+      .then(function () { $('joinbtn').disabled = false; });
+  };
+}
+
+function renderPeople(ev) {
+  current = ev;
+  var max = ev.max_players;
+  var going = max ? ev.signups.slice(0, max) : ev.signups;
+  var waiting = max ? ev.signups.slice(max) : [];
+  var counts = {};
+  ev.signups.forEach(function (s) { s.brings.forEach(function (g) { counts[g] = (counts[g] || 0) + 1; }); });
+  var gear = GEAR.filter(function (g) { return counts[g]; })
+    .map(function (g) { return esc(gearName(g)) + (counts[g] > 1 ? ' ×' + counts[g] : ''); }).join(' · ');
+
+  $('goingbar').textContent = t('going') + ' (' + playersText(going.length, max) + ')';
+  $('people').innerHTML =
+    (going.length ? '<ol class="names">' + going.map(nameItem).join('') + '</ol>' : esc(t('nobody'))) +
+    (waiting.length ? '<p style="margin:8px 0 2px"><b>' + esc(t('waitlist')) + ' (' + waiting.length + ')</b></p>' +
+      '<ol class="names" start="' + (going.length + 1) + '">' + waiting.map(nameItem).join('') + '</ol>' : '') +
+    (ev.signups.length
+      ? '<div class="gear"><b>' + esc(t('gear_summary')) + ':</b> ' + (gear || esc(t('gear_none'))) +
+        (counts.net ? '' : ' <span class="warn">' + esc(t('no_net')) + '</span>') + '</div>'
+      : '');
+}
+
+function signupHeaders(sid) {
+  var headers = {};
+  var rm = storeGet('rm:' + sid);
+  if (rm) headers['x-remove-token'] = rm;
+  if (token) headers['x-edit-token'] = token;
+  return headers;
+}
+
+// Swap a name in the list for an editable box with Save / Cancel.
+function editName(sid) {
+  var s = current.signups.filter(function (x) { return x.id === sid; })[0];
+  var li = $('people').querySelector('li[data-sid="' + sid + '"]');
+  if (!s || !li) return;
+  var box = personRow(true, s);
+  box.insertAdjacentHTML('beforeend',
+    '<div class="actions" style="margin-top:8px"><button type="button" class="save"><b>' + esc(t('btn_save_person')) + '</b></button>' +
+    '<a href="#" class="cancel">' + esc(t('btn_cancel')) + '</a></div><div class="emsg"></div>');
+  li.innerHTML = '';
+  li.appendChild(box);
+  box.querySelector('.p-name').focus();
+  box.querySelector('.cancel').onclick = function (e) { e.preventDefault(); renderPeople(current); };
+  box.querySelector('.save').onclick = function () {
+    var btn = this;
+    btn.disabled = true;
+    api('/api/signups/' + encodeURIComponent(sid), { method: 'PATCH', body: readPerson(box), headers: signupHeaders(sid) })
+      .then(function () { return load(); })
+      .then(function () { showMsg($('joinmsg'), esc(t('saved'))); })
+      .catch(function (err) { btn.disabled = false; showMsg(box.querySelector('.emsg'), esc(errText(err)), 'err'); });
   };
 }
 
 function removeName(sid) {
   if (!confirm(t('confirm_remove'))) return;
-  var headers = {};
-  var rm = storeGet('rm:' + sid);
-  if (rm) headers['x-remove-token'] = rm;
-  if (token) headers['x-edit-token'] = token;
-  api('/api/signups/' + encodeURIComponent(sid), { method: 'DELETE', headers: headers })
+  api('/api/signups/' + encodeURIComponent(sid), { method: 'DELETE', headers: signupHeaders(sid) })
     .then(function () { storeDel('rm:' + sid); return load(); })
     .catch(function (err) { alert(errText(err)); });
 }

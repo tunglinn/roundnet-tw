@@ -118,6 +118,21 @@ label { display: block; font-weight: bold; margin: 10px 0 3px; }
 ol.names { margin: 0; padding-left: 28px; }
 ol.names li { padding: 1px 0; }
 ol.names a.rm { font-size: 11px; margin-left: 6px; }
+.tag { display: inline-block; font-size: 11px; background: #ffd800; border: 1px solid #000; padding: 0 4px; margin-left: 4px; }
+.pnote { font-size: 12px; color: #333; font-style: italic; margin-left: 4px; }
+.gear { margin-top: 8px; padding-top: 6px; border-top: 1px dotted #999; font-size: 13px; }
+.warn { color: #c00; font-weight: bold; }
+
+/* ---------- join form: one box per person ---------- */
+fieldset.person { position: relative; margin: 0 0 8px; padding: 6px 10px 8px; border: 2px groove var(--light); }
+fieldset.person label { margin-top: 4px; }
+fieldset.person .x { position: absolute; top: 4px; right: 6px; padding: 0 6px; }
+.gearpick { margin-top: 6px; }
+a.addfriend { display: inline-block; margin: 0 0 4px 2px; }
+/* Big, separate primary button so it can't be confused with "+ Add a friend" */
+button.joinbtn { display: block; width: 100%; margin-top: 14px; padding: 8px; font-size: 16px; font-weight: bold; background: #ffd800; }
+ol.names fieldset.person { margin: 4px 0 8px; background: var(--face); }
+.gearpick label.chk { display: inline-block; font-weight: normal; margin: 2px 12px 2px 0; white-space: nowrap; }
 
 /* ---------- map ---------- */
 .map { height: 440px; border: 2px solid; border-color: var(--shadow) var(--light) var(--light) var(--shadow); }

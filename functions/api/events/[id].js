@@ -18,9 +18,10 @@ export async function onRequestGet({ params, env }) {
   const ev = await env.DB.prepare(`SELECT ${PUBLIC_COLS} FROM events WHERE id = ?`).bind(params.id).first();
   if (!ev) return bad('err_not_found', 404);
   const { results } = await env.DB.prepare(
-    'SELECT id, name FROM signups WHERE event_id = ? ORDER BY created_at, rowid'
+    'SELECT id, name, brings, note FROM signups WHERE event_id = ? ORDER BY created_at, rowid'
   ).bind(params.id).all();
-  return json({ ...ev, signups: results });
+  const signups = results.map((s) => ({ ...s, brings: s.brings ? s.brings.split(',') : [] }));
+  return json({ ...ev, signups });
 }
 
 // PUT /api/events/:id  (header X-Edit-Token)
