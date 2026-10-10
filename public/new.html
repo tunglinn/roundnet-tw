@@ -21,27 +21,33 @@
   <div class="bar" id="formtitle" data-i18n="new_title"></div>
   <div class="body">
     <form id="form" novalidate>
-      <label for="title" data-i18n="f_title"></label>
-      <input type="text" id="title" maxlength="80" required data-i18n-ph="ph_title">
+      <!-- Where: city first, so the map can zoom there before you drop the pin -->
+      <label for="city" data-i18n="f_city"></label>
+      <select id="city" required></select>
 
-      <div class="row">
-        <div><label for="date" data-i18n="f_date"></label><input type="date" id="date" required></div>
-        <div><label for="start" data-i18n="f_start"></label><input type="time" id="start" required></div>
-        <div><label for="end" data-i18n="f_end"></label><input type="time" id="end"></div>
-      </div>
+      <label><span data-i18n="f_pin"></span> &nbsp; <span id="pinstate" class="small"></span></label>
+      <div id="map" class="map small"></div>
+      <p class="small"><button type="button" id="locate" data-i18n="f_mylocation"></button></p>
 
       <label for="place" data-i18n="f_place"></label>
       <input type="text" id="place" maxlength="100" required data-i18n-ph="ph_place">
 
-      <div class="row">
-        <div><label for="city" data-i18n="f_city"></label><select id="city" required></select></div>
-        <div><label for="level" data-i18n="f_level"></label><select id="level"></select></div>
-        <div><label for="max" data-i18n="f_max"></label><input type="number" id="max" min="2" max="100" style="width:7em"></div>
-      </div>
+      <!-- What -->
+      <label for="title" data-i18n="f_title"></label>
+      <input type="text" id="title" maxlength="80" required data-i18n-ph="ph_title">
 
-      <label for="min" data-i18n="f_min"></label>
-      <input type="number" id="min" min="2" max="100" style="width:7em">
-      <div class="small" data-i18n="min_help"></div>
+      <!-- When -->
+      <div class="row">
+        <div>
+          <label for="when"><span data-i18n="f_when"></span> <span class="small" data-i18n="tz_note"></span></label>
+          <input type="datetime-local" id="when" step="900" required>
+        </div>
+        <div>
+          <label for="duration" data-i18n="f_duration"></label>
+          <select id="duration"></select>
+          <div class="small" id="endsat">&nbsp;</div>
+        </div>
+      </div>
 
       <div id="repeatbox">
         <div class="row">
@@ -51,9 +57,15 @@
         <div class="small" id="untilhelp" style="display:none" data-i18n="until_help"></div>
       </div>
 
-      <label><span data-i18n="f_pin"></span> &nbsp; <span id="pinstate" class="small"></span></label>
-      <div id="map" class="map small"></div>
-      <p class="small"><button type="button" id="locate" data-i18n="f_mylocation"></button></p>
+      <!-- Who -->
+      <div class="row">
+        <div><label for="level" data-i18n="f_level"></label><select id="level"></select></div>
+        <div><label for="max" data-i18n="f_max"></label><input type="number" id="max" min="2" max="100" style="width:7em"></div>
+      </div>
+
+      <label for="min" data-i18n="f_min"></label>
+      <input type="number" id="min" min="2" max="100" style="width:7em">
+      <div class="small" data-i18n="min_help"></div>
 
       <label for="contact" data-i18n="f_contact"></label>
       <input type="text" id="contact" maxlength="100">
@@ -88,6 +100,17 @@ var editId = param('id');
 var token = editId ? storeGet('edit:' + editId) : null;
 if (editId && !token) location.replace('/event?id=' + encodeURIComponent(editId));
 
+// Where the map jumps to when a city is picked: [lat, lng, zoom].
+var CITY_VIEW = {
+  taipei: [25.04, 121.55, 12], new_taipei: [25.01, 121.47, 11], keelung: [25.13, 121.74, 13],
+  taoyuan: [24.99, 121.30, 12], hsinchu: [24.80, 120.97, 12], miaoli: [24.56, 120.82, 11],
+  taichung: [24.15, 120.67, 12], changhua: [24.08, 120.54, 12], nantou: [23.91, 120.69, 11],
+  yunlin: [23.71, 120.54, 11], chiayi: [23.48, 120.45, 12], tainan: [23.00, 120.23, 12],
+  kaohsiung: [22.63, 120.30, 12], pingtung: [22.67, 120.49, 12], yilan: [24.76, 121.75, 12],
+  hualien: [23.99, 121.61, 12], taitung: [22.76, 121.14, 12], penghu: [23.57, 119.58, 12],
+  kinmen: [24.44, 118.32, 12], matsu: [26.16, 119.95, 12]
+};
+
 $('city').innerHTML = '<option value="">' + esc(t('choose')) + '</option>' +
   CITIES.map(function (c) { return '<option value="' + c + '">' + esc(cityName(c)) + '</option>'; }).join('');
 $('repeat').innerHTML = '<option value="none">' + esc(t('rep_none')) + '</option><option value="weekly">' + esc(t('rep_weekly')) + '</option>';
@@ -96,7 +119,44 @@ $('repeat').onchange = function () {
   $('untilbox').style.display = $('untilhelp').style.display = weekly ? '' : 'none';
 };
 $('level').innerHTML = LEVELS.map(function (l) { return '<option value="' + l + '">' + esc(levelName(l)) + '</option>'; }).join('');
-$('date').min = taipeiToday();
+$('when').min = taipeiToday() + 'T00:00';
+
+// ---------- duration -> end time ----------
+
+function durLabel(mins) {
+  var h = Math.floor(mins / 60), m = mins % 60;
+  return LANG === 'zh'
+    ? (h ? h + ' 小時' : '') + (m ? ' ' + m + ' 分鐘' : '')
+    : (h ? h + ' h' : '') + (m ? ' ' + m + ' min' : '');
+}
+function addDurOption(mins) {
+  var o = document.createElement('option');
+  o.value = mins;
+  o.textContent = durLabel(mins).trim();
+  $('duration').appendChild(o);
+}
+$('duration').innerHTML = '<option value="">' + esc(t('dur_none')) + '</option>';
+for (var mins = 30; mins <= 360; mins += 30) addDurOption(mins);
+$('duration').value = '120';
+
+function pad(n) { return (n < 10 ? '0' : '') + n; }
+
+// End time as HH:MM, '' for no end, or null if it would run past midnight.
+function endTime() {
+  var when = $('when').value, dur = Number($('duration').value);
+  if (!/T\d\d:\d\d/.test(when) || !dur) return '';
+  var total = Number(when.slice(11, 13)) * 60 + Number(when.slice(14, 16)) + dur;
+  return total >= 24 * 60 ? null : pad(Math.floor(total / 60)) + ':' + pad(total % 60);
+}
+function showEnd() {
+  var end = endTime();
+  $('endsat').innerHTML = end === null ? '<span class="warn">' + esc(t('err_end_midnight')) + '</span>'
+    : end ? esc(t('ends_at').replace('{time}', end)) : '&nbsp;';
+}
+$('when').oninput = $('when').onchange = $('duration').onchange = showEnd;
+showEnd();
+
+// ---------- map ----------
 
 var map = makeMap('map');
 var pin = null;
@@ -107,12 +167,19 @@ function setPin(ll) {
 $('pinstate').textContent = t('pin_missing');
 map.on('click', function (e) { setPin(e.latlng); });
 
+$('city').onchange = function () {
+  var v = CITY_VIEW[$('city').value];
+  if (v) map.setView([v[0], v[1]], v[2]);
+};
+
 $('locate').onclick = function () {
   if (!navigator.geolocation) return;
   navigator.geolocation.getCurrentPosition(function (p) {
     map.setView([p.coords.latitude, p.coords.longitude], 16);
   });
 };
+
+// ---------- edit mode ----------
 
 if (editId && token) {
   $('formtitle').textContent = t('edit_title');
@@ -121,10 +188,16 @@ if (editId && token) {
   $('repeatbox').style.display = 'none';  // repeat is chosen when creating
   api('/api/events/' + encodeURIComponent(editId)).then(function (ev) {
     $('title').value = ev.title;
-    $('date').value = ev.starts_at.slice(0, 10);
-    $('date').removeAttribute('min');
-    $('start').value = ev.starts_at.slice(11, 16);
-    $('end').value = ev.ends_at ? ev.ends_at.slice(11, 16) : '';
+    $('when').value = ev.starts_at.slice(0, 16);
+    $('when').removeAttribute('min');
+    var dur = '';
+    if (ev.ends_at) {
+      var toMin = function (s) { return Number(s.slice(11, 13)) * 60 + Number(s.slice(14, 16)); };
+      dur = String(toMin(ev.ends_at) - toMin(ev.starts_at));
+      if (!$('duration').querySelector('option[value="' + dur + '"]')) addDurOption(Number(dur));
+    }
+    $('duration').value = dur;
+    showEnd();
     $('place').value = ev.place_name;
     $('city').value = ev.city;
     $('level').value = ev.level;
@@ -138,11 +211,19 @@ if (editId && token) {
   }).catch(function (err) { showMsg($('errors'), esc(errText(err)), 'err'); });
 }
 
+// ---------- submit ----------
+
 $('form').onsubmit = function (e) {
   e.preventDefault();
+  var end = endTime();
+  if (end === null) {
+    showMsg($('errors'), esc(t('err_end_midnight')), 'err');
+    return;
+  }
   var ll = pin ? pin.getLatLng() : null;
+  var when = $('when').value;  // "YYYY-MM-DDTHH:MM", always Taiwan time
   var body = {
-    title: $('title').value, date: $('date').value, start: $('start').value, end: $('end').value,
+    title: $('title').value, date: when.slice(0, 10), start: when.slice(11, 16), end: end,
     place_name: $('place').value, city: $('city').value, level: $('level').value,
     max_players: $('max').value, min_players: $('min').value, contact: $('contact').value, notes: $('notes').value,
     lat: ll ? ll.lat : '', lng: ll ? ll.lng : '',
