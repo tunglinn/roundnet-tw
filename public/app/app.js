@@ -162,6 +162,19 @@ function dot(latlng) {
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function () {});
 
+// Opening the app (or switching back to it) clears its notifications from the phone's tray;
+// otherwise they stay until tapped.
+function clearNotifications() {
+  if (!('serviceWorker' in navigator) || document.visibilityState !== 'visible') return;
+  navigator.serviceWorker.getRegistration().then(function (reg) {
+    if (reg && reg.getNotifications) {
+      return reg.getNotifications().then(function (list) { list.forEach(function (n) { n.close(); }); });
+    }
+  }).catch(function () {});
+}
+clearNotifications();
+document.addEventListener('visibilitychange', clearNotifications);
+
 function isStandalone() {
   return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 }
@@ -189,7 +202,8 @@ function b64urlBytes(s) {
   return Uint8Array.from(bin, function (c) { return c.charCodeAt(0); });
 }
 
-// opts: {eventId, kinds: ['updates'] | ['signups'], key: localStorage key, label: i18n key}
+// opts: {follow: {event_id} | {city}, kinds: ['updates'] | ['signups'] | ['new'],
+//        key: localStorage key remembering it's on (optional), label: i18n key (renderPush)}
 function enablePush(opts) {
   // requestPermission must be the first thing after the tap (iOS requires a user gesture).
   return Notification.requestPermission().then(function (perm) {
@@ -201,10 +215,10 @@ function enablePush(opts) {
     });
   }).then(function (sub) {
     return api('/api/push/subscribe', { method: 'POST',
-      body: { subscription: sub.toJSON(), lang: LANG, event_id: opts.eventId, kinds: opts.kinds } });
+      body: Object.assign({ subscription: sub.toJSON(), lang: LANG, kinds: opts.kinds }, opts.follow) });
   }).then(function (res) {
     storeSet('push-sub', res.sub_id);
-    storeSet(opts.key, '1');
+    if (opts.key) storeSet(opts.key, '1');
   });
 }
 
@@ -213,9 +227,18 @@ function disablePush(opts) {
     .then(function (reg) { return reg.pushManager.getSubscription(); })
     .then(function (sub) {
       if (sub) return api('/api/push/unsubscribe', { method: 'POST',
-        body: { endpoint: sub.endpoint, event_id: opts.eventId, kinds: opts.kinds } });
+        body: Object.assign({ endpoint: sub.endpoint, kinds: opts.kinds }, opts.follow) });
     })
-    .then(function () { storeDel(opts.key); });
+    .then(function () { if (opts.key) storeDel(opts.key); });
+}
+
+// If push can't work here (LINE, iPhone browser, …), explain what to do in msgEl and return true.
+function pushBlocked(msgEl) {
+  var state = pushState();
+  if (state === 'ok') return false;
+  msgEl.innerHTML = '<div class="msg">' + esc(t('push_' + state)) +
+    (state === 'line' ? ' <a href="' + esc(externalUrl()) + '">' + esc(t('push_open_browser')) + '</a>' : '') + '</div>';
+  return true;
 }
 
 // A 🔔 on/off button. When push can't work here (LINE, iPhone browser, …) a tap explains what to do.
@@ -226,12 +249,7 @@ function renderPush(el, opts) {
   var btn = el.querySelector('button');
   var msg = el.querySelector('.pushmsg');
   btn.onclick = function () {
-    var state = pushState();
-    if (!on && state !== 'ok') {
-      msg.innerHTML = '<div class="msg">' + esc(t('push_' + state)) +
-        (state === 'line' ? ' <a href="' + esc(externalUrl()) + '">' + esc(t('push_open_browser')) + '</a>' : '') + '</div>';
-      return;
-    }
+    if (!on && pushBlocked(msg)) return;
     btn.disabled = true;
     (on ? disablePush(opts) : enablePush(opts))
       .then(function () { renderPush(el, opts); })

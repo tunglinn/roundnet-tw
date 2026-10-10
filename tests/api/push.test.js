@@ -124,3 +124,51 @@ describe('push notifications', () => {
     expect(push.sent).toHaveLength(0);
   });
 });
+
+describe('new pickup notifications', () => {
+  const followCity = (browser, city, lang = 'en') =>
+    call(subscribe.onRequestPost, { env, method: 'POST', body: { subscription: browser.subscription, city, kinds: ['new'], lang } });
+
+  it('notifies followers of that city and of all of Taiwan, not other cities', async () => {
+    const taipei = await fakeBrowser();
+    const anywhere = await fakeBrowser();
+    const tainan = await fakeBrowser();
+    await followCity(taipei, 'taipei', 'zh');
+    await followCity(anywhere, 'all');
+    await followCity(tainan, 'tainan');
+    const ev = await create();
+    const when = base.date.slice(5).replace('-', '/');
+    expect(await received(taipei)).toEqual([
+      { title: 'Sat pickup', body: `新揪團：${when} 14:00 · Daan Park`, url: '/event?id=' + ev.id, tag: ev.id },
+    ]);
+    expect((await received(anywhere))[0].body).toBe(`New pickup: ${when} 14:00 · Daan Park`);
+    expect(await received(tainan)).toEqual([]);
+  });
+
+  it('announces a weekly series once', async () => {
+    const b = await fakeBrowser();
+    await followCity(b, 'taipei');
+    await create({ repeat: 'weekly' });
+    const msgs = await received(b);
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].body).toMatch(/^New weekly pickup, starting /);
+  });
+
+  it("doesn't notify the device that created it", async () => {
+    const b = await fakeBrowser();
+    const { data } = await followCity(b, 'all');
+    await call(events.onRequestPost, { env, method: 'POST', body: base, headers: { 'x-push-sub': data.sub_id } });
+    expect(push.sent).toHaveLength(0);
+  });
+
+  it('rejects unknown cities and can be turned off', async () => {
+    const b = await fakeBrowser();
+    expect((await followCity(b, 'tokyo')).status).toBe(400);
+    await followCity(b, 'taipei');
+    await call(unsubscribe.onRequestPost, {
+      env, method: 'POST', body: { endpoint: b.subscription.endpoint, city: 'taipei', kinds: ['new'] },
+    });
+    await create();
+    expect(push.sent).toHaveLength(0);
+  });
+});

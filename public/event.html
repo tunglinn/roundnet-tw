@@ -195,10 +195,10 @@ function render(ev) {
   map = makeMap('map', [ev.lat, ev.lng], 15);
   dot([ev.lat, ev.lng]).addTo(map);
 
-  renderPush($('push-updates'), { eventId: id, kinds: ['updates'], key: 'push:' + id, label: 'push_updates' });
+  renderPush($('push-updates'), { follow: { event_id: id }, kinds: ['updates'], key: 'push:' + id, label: 'push_updates' });
   if (token) {
     // Organizers follow joins for the whole series, so the on/off state is per series.
-    renderPush($('push-signups'), { eventId: id, kinds: ['signups'], key: 'push-org:' + (ev.series_id || id), label: 'push_signups' });
+    renderPush($('push-signups'), { follow: { event_id: id }, kinds: ['signups'], key: 'push-org:' + (ev.series_id || id), label: 'push_signups' });
   }
 
   if (!$('join')) return;  // cancelled: no joining

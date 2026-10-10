@@ -1,6 +1,7 @@
 import { validateEvent } from '../../lib/validate.js';
 import { json, bad, readJson, newId, newToken } from '../../lib/http.js';
 import { topUpSeries, templateFrom, occurrence, nextDates, insertEvent } from '../../lib/series.js';
+import { notify, inBackground, NEW_TARGET_ALL } from '../../lib/notify.js';
 
 // GET /api/events?city=taipei — upcoming pickups (incl. ones that started in the last 3h).
 // Cancelled pickups are included so people can see they were cancelled.
@@ -27,7 +28,8 @@ export async function onRequestGet({ request, env }) {
 
 // POST /api/events — create; returns the secret edit_token once.
 // With repeat: 'weekly' also creates the series and its dates for the next 4 weeks.
-export async function onRequestPost({ request, env }) {
+export async function onRequestPost(ctx) {
+  const { request, env } = ctx;
   const body = await readJson(request);
   if (!body) return bad('err_bad_request');
   const { errors, value: v } = validateEvent(body);
@@ -36,9 +38,15 @@ export async function onRequestPost({ request, env }) {
   const id = newId();
   const edit_token = newToken();
   const now = Date.now();
+  // One "new pickup" notification per pickup (a weekly series counts once).
+  const announce = () => inBackground(ctx, notify(env, {
+    eventId: id, kinds: ['new'], msg: v.repeat === 'weekly' ? 'new_weekly' : 'new',
+    targets: ['city:' + v.city, NEW_TARGET_ALL], exclude: request.headers.get('x-push-sub'),
+  }));
 
   if (v.repeat !== 'weekly') {
     await insertEvent(env, id, v, { edit_token, now }).run();
+    announce();
     return json({ id, edit_token }, 201);
   }
 
@@ -53,5 +61,6 @@ export async function onRequestPost({ request, env }) {
     ...nextDates(date, { now, until: v.until }).map((d) =>
       insertEvent(env, newId(), occurrence(tpl, d), { edit_token, series_id, now })),
   ]);
+  announce();
   return json({ id, edit_token, series_id }, 201);
 }

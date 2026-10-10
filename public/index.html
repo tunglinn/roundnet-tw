@@ -27,6 +27,17 @@
   </div>
 </div>
 
+<div class="win">
+  <div class="bar" data-i18n="new_title"></div>
+  <div class="body">
+    <div class="small" style="margin-bottom:6px" data-i18n="new_help"></div>
+    <select id="newcity" aria-label="City"></select>
+    <button type="button" id="newbtn" data-i18n="btn_notify"></button>
+    <div id="newfollowing"></div>
+    <div id="newmsg"></div>
+  </div>
+</div>
+
 <div class="win" id="pastebox" style="display:none">
   <div class="bar" data-i18n="paste_title"></div>
   <div class="body">
@@ -45,6 +56,49 @@
 <script src="/app/app.js"></script>
 <script>
 renderChrome();
+
+// ---------- new pickup notifications ----------
+// Followed cities are remembered on this device ('all' = all of Taiwan).
+function newCities() { return (storeGet('push-new') || '').split(',').filter(Boolean); }
+function newCityName(c) { return c === 'all' ? t('all_taiwan') : cityName(c); }
+
+function renderNewFollowing() {
+  var list = newCities();
+  $('newfollowing').innerHTML = list.length
+    ? '<p class="small">' + esc(t('new_following')) + ' ' + list.map(function (c) {
+        return '<b>' + esc(newCityName(c)) + '</b> <a href="#" data-city="' + esc(c) + '">[' + esc(t('turn_off')) + ']</a>';
+      }).join(' · ') + '</p>'
+    : '';
+  $('newfollowing').querySelectorAll('a[data-city]').forEach(function (a) {
+    a.onclick = function (e) {
+      e.preventDefault();
+      var c = a.getAttribute('data-city');
+      disablePush({ follow: { city: c }, kinds: ['new'] }).then(function () {
+        storeSet('push-new', newCities().filter(function (x) { return x !== c; }).join(','));
+        renderNewFollowing();
+      }).catch(function (err) { showMsg($('newmsg'), esc(errText(err)), 'err'); });
+    };
+  });
+}
+
+$('newcity').innerHTML = '<option value="all">' + esc(t('all_taiwan')) + '</option>' +
+  CITIES.map(function (c) { return '<option value="' + c + '">' + esc(cityName(c)) + '</option>'; }).join('');
+$('newcity').value = city || 'all';  // default to the city being viewed
+renderNewFollowing();
+
+$('newbtn').onclick = function () {
+  var btn = this, c = $('newcity').value;
+  $('newmsg').innerHTML = '';
+  if (pushBlocked($('newmsg'))) return;
+  btn.disabled = true;
+  enablePush({ follow: { city: c }, kinds: ['new'] }).then(function () {
+    var list = newCities();
+    if (list.indexOf(c) < 0) list.push(c);
+    storeSet('push-new', list.join(','));
+    renderNewFollowing();
+  }).catch(function (err) { showMsg($('newmsg'), esc(errText(err)), 'err'); })
+    .then(function () { btn.disabled = false; });
+};
 
 // In the installed app (home screen), the browser's saved edit links aren't available.
 if (isStandalone()) {
