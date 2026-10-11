@@ -38,10 +38,14 @@
       <div class="small" data-i18n="bilingual_tip"></div>
 
       <!-- When -->
+      <label data-i18n="f_date"></label>
+      <div id="cal" class="cal"></div>
+      <div class="small" id="datepicked"></div>
+
       <div class="row">
         <div>
-          <label for="when"><span data-i18n="f_when"></span> <span class="small" data-i18n="tz_note"></span></label>
-          <input type="datetime-local" id="when" step="900" required>
+          <label for="start"><span data-i18n="f_start"></span> <span class="small" data-i18n="tz_note"></span></label>
+          <select id="start"></select>
         </div>
         <div>
           <label for="duration" data-i18n="f_duration"></label>
@@ -120,7 +124,81 @@ $('repeat').onchange = function () {
   $('untilbox').style.display = $('untilhelp').style.display = weekly ? '' : 'none';
 };
 $('level').innerHTML = LEVELS.map(function (l) { return '<option value="' + l + '">' + esc(levelName(l)) + '</option>'; }).join('');
-$('when').min = taipeiToday() + 'T00:00';
+
+// ---------- date: an always-visible month calendar ----------
+// Native date pickers are scroll wheels on some phones; people think "this Sunday", so show a calendar.
+// Dates are 'YYYY-MM-DD' strings, Taiwan time; all math is done in UTC to avoid time zone shifts.
+
+var today = taipeiToday();
+var minDate = today;
+var maxDate = new Date(Date.parse(today + 'T00:00:00Z') + 182 * 864e5).toISOString().slice(0, 10);
+var pickedDate = '';
+var calMonth = today.slice(0, 7);  // 'YYYY-MM' being shown
+var LOCALE = LANG === 'zh' ? 'zh-TW' : 'en-US';
+
+function utcDate(d) { return new Date(d + 'T00:00:00Z'); }
+function fmtUTC(d, opts) { return utcDate(d).toLocaleDateString(LOCALE, Object.assign({ timeZone: 'UTC' }, opts)); }
+function shiftMonth(ym, n) {
+  var d = new Date(Date.UTC(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)) - 1 + n, 1));
+  return d.toISOString().slice(0, 7);
+}
+
+function renderCal() {
+  var first = calMonth + '-01';
+  var startDow = utcDate(first).getUTCDay();  // 0 = Sunday
+  var days = new Date(Date.UTC(Number(calMonth.slice(0, 4)), Number(calMonth.slice(5, 7)), 0)).getUTCDate();
+  var canPrev = shiftMonth(calMonth, -1) >= minDate.slice(0, 7);
+  var canNext = shiftMonth(calMonth, 1) <= maxDate.slice(0, 7);
+
+  var head = '';
+  for (var i = 0; i < 7; i++) {  // 2026-01-04 is a Sunday
+    head += '<th' + (i === 0 || i === 6 ? ' class="wkend"' : '') + '>' +
+      esc(fmtUTC('2026-01-' + ('0' + (4 + i)).slice(-2), { weekday: 'short' })) + '</th>';
+  }
+  var cells = '', col = 0;
+  for (i = 0; i < startDow; i++, col++) cells += '<td></td>';
+  for (var day = 1; day <= days; day++, col++) {
+    if (col % 7 === 0 && col) cells += '</tr><tr>';
+    var d = calMonth + '-' + (day < 10 ? '0' : '') + day;
+    var dow = col % 7;
+    var cls = [d === pickedDate ? 'picked' : '', d === today ? 'today' : '', dow === 0 || dow === 6 ? 'wkend' : ''].join(' ');
+    cells += '<td>' + (d < minDate || d > maxDate
+      ? '<span class="off">' + day + '</span>'
+      : '<button type="button" class="' + cls + '" data-d="' + d + '">' + day + '</button>') + '</td>';
+  }
+  for (; col % 7; col++) cells += '<td></td>';
+
+  $('cal').innerHTML =
+    '<div class="calhead">' +
+      '<button type="button" class="calnav" data-m="-1"' + (canPrev ? '' : ' disabled') + ' aria-label="previous month">◀</button>' +
+      '<b>' + esc(fmtUTC(first, { year: 'numeric', month: 'long' })) + '</b>' +
+      '<button type="button" class="calnav" data-m="1"' + (canNext ? '' : ' disabled') + ' aria-label="next month">▶</button>' +
+    '</div>' +
+    '<table><tr>' + head + '</tr><tr>' + cells + '</tr></table>';
+
+  $('cal').querySelectorAll('button[data-d]').forEach(function (b) {
+    b.onclick = function () { pickedDate = b.getAttribute('data-d'); renderCal(); showEnd(); };
+  });
+  $('cal').querySelectorAll('button[data-m]').forEach(function (b) {
+    b.onclick = function () { calMonth = shiftMonth(calMonth, Number(b.getAttribute('data-m'))); renderCal(); };
+  });
+  $('datepicked').textContent = pickedDate
+    ? t('date_picked').replace('{date}', fmtUTC(pickedDate, { weekday: 'long', month: 'numeric', day: 'numeric' }))
+    : t('pick_date');
+}
+
+// ---------- start time: 30-minute steps ----------
+
+function addStartOption(hhmm) {
+  var o = document.createElement('option');
+  o.value = o.textContent = hhmm;
+  $('start').appendChild(o);
+}
+$('start').innerHTML = '<option value="">' + esc(t('choose')) + '</option>';
+for (var m = 6 * 60; m < 24 * 60; m += 30) addStartOption((m < 600 ? '0' : '') + Math.floor(m / 60) + ':' + (m % 60 ? '30' : '00'));
+
+// "YYYY-MM-DDTHH:MM" or '' until both are picked
+function whenValue() { return pickedDate && $('start').value ? pickedDate + 'T' + $('start').value : ''; }
 
 // ---------- duration -> end time ----------
 
@@ -144,7 +222,7 @@ function pad(n) { return (n < 10 ? '0' : '') + n; }
 
 // End time as HH:MM, '' for no end, or null if it would run past midnight.
 function endTime() {
-  var when = $('when').value, dur = Number($('duration').value);
+  var when = whenValue(), dur = Number($('duration').value);
   if (!/T\d\d:\d\d/.test(when) || !dur) return '';
   var total = Number(when.slice(11, 13)) * 60 + Number(when.slice(14, 16)) + dur;
   return total >= 24 * 60 ? null : pad(Math.floor(total / 60)) + ':' + pad(total % 60);
@@ -154,7 +232,8 @@ function showEnd() {
   $('endsat').innerHTML = end === null ? '<span class="warn">' + esc(t('err_end_midnight')) + '</span>'
     : end ? esc(t('ends_at').replace('{time}', end)) : '&nbsp;';
 }
-$('when').oninput = $('when').onchange = $('duration').onchange = showEnd;
+$('start').onchange = $('duration').onchange = showEnd;
+renderCal();
 showEnd();
 
 // ---------- map ----------
@@ -189,8 +268,13 @@ if (editId && token) {
   $('repeatbox').style.display = 'none';  // repeat is chosen when creating
   api('/api/events/' + encodeURIComponent(editId)).then(function (ev) {
     $('title').value = ev.title;
-    $('when').value = ev.starts_at.slice(0, 16);
-    $('when').removeAttribute('min');
+    pickedDate = ev.starts_at.slice(0, 10);
+    if (pickedDate < minDate) minDate = pickedDate;  // an already-started pickup can still be edited
+    calMonth = pickedDate.slice(0, 7);
+    var start = ev.starts_at.slice(11, 16);
+    if (!$('start').querySelector('option[value="' + start + '"]')) addStartOption(start);
+    $('start').value = start;
+    renderCal();
     var dur = '';
     if (ev.ends_at) {
       var toMin = function (s) { return Number(s.slice(11, 13)) * 60 + Number(s.slice(14, 16)); };
@@ -222,7 +306,7 @@ $('form').onsubmit = function (e) {
     return;
   }
   var ll = pin ? pin.getLatLng() : null;
-  var when = $('when').value;  // "YYYY-MM-DDTHH:MM", always Taiwan time
+  var when = whenValue();  // "YYYY-MM-DDTHH:MM", always Taiwan time
   var body = {
     title: $('title').value, date: when.slice(0, 10), start: when.slice(11, 16), end: end,
     place_name: $('place').value, city: $('city').value, level: $('level').value,

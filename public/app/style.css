@@ -114,6 +114,21 @@ label { display: block; font-weight: bold; margin: 10px 0 3px; }
 .small { font-size: 12px; color: #333; }
 .muted { color: #555; }
 
+/* ---------- calendar (add pickup) ---------- */
+.cal { background: #fff; border: 2px solid; border-color: var(--shadow) var(--light) var(--light) var(--shadow);
+       padding: 6px; max-width: 360px; }
+.calhead { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.calhead .calnav { padding: 0 10px; }
+.cal table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.cal th { font-size: 12px; font-weight: normal; color: #333; padding: 2px 0; }
+.cal td { text-align: center; padding: 1px; }
+.cal td button { width: 100%; padding: 6px 0; box-shadow: none; border-width: 1px; }
+.cal .wkend { color: #c00 !important; }
+.cal td button.today { outline: 2px solid var(--title1); outline-offset: -3px; }
+.cal td button.picked { background: var(--title1); color: #fff !important; font-weight: bold;
+                        border-color: var(--dark) var(--light) var(--light) var(--dark); }
+.cal .off { color: #bbb; display: block; padding: 6px 0; }
+
 /* ---------- names list ---------- */
 ol.names { margin: 0; padding-left: 28px; }
 ol.names li { padding: 1px 0; }
