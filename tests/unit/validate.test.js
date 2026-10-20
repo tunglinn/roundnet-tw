@@ -95,8 +95,14 @@ describe('parsePeople', () => {
       { name: '' },
       null,
     ])).toEqual([
-      { name: 'Tung', brings: ['net', 'balls'], note: 'arrive ~3pm' },
-      { name: 'Amy', brings: [], note: '' },
+      { name: 'Tung', brings: ['net', 'balls'], note: 'arrive ~3pm', going: true },
+      { name: 'Amy', brings: [], note: '', going: true },
+    ]);
+  });
+
+  it('someone not going brings nothing', () => {
+    expect(parsePeople([{ name: 'A', brings: ['net'], note: 'sick', going: false }])).toEqual([
+      { name: 'A', brings: [], note: 'sick', going: false },
     ]);
   });
 
@@ -106,8 +112,8 @@ describe('parsePeople', () => {
 
   it('falls back to comma-separated names', () => {
     expect(parsePeople('Tung, Amy')).toEqual([
-      { name: 'Tung', brings: [], note: '' },
-      { name: 'Amy', brings: [], note: '' },
+      { name: 'Tung', brings: [], note: '', going: true },
+      { name: 'Amy', brings: [], note: '', going: true },
     ]);
   });
 });

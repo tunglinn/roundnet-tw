@@ -14,9 +14,9 @@ export async function onRequestGet({ params, env }) {
   const ev = await env.DB.prepare(`SELECT ${PUBLIC_COLS} FROM events WHERE id = ?`).bind(params.id).first();
   if (!ev) return bad('err_not_found', 404);
   const { results } = await env.DB.prepare(
-    'SELECT id, name, brings, note FROM signups WHERE event_id = ? ORDER BY created_at, rowid'
+    'SELECT id, name, brings, note, going FROM signups WHERE event_id = ? ORDER BY created_at, rowid'
   ).bind(params.id).all();
-  const signups = results.map((s) => ({ ...s, brings: s.brings ? s.brings.split(',') : [] }));
+  const signups = results.map((s) => ({ ...s, brings: s.brings ? s.brings.split(',') : [], going: !!s.going }));
 
   let series = null;
   if (ev.series_id) {

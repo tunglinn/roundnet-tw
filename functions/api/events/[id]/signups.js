@@ -3,7 +3,7 @@ import { json, bad, readJson, newId, newToken } from '../../../../lib/http.js';
 import { notify, inBackground, namesText } from '../../../../lib/notify.js';
 
 // POST /api/events/:id/signups
-//   {people: [{name: "Tung", brings: ["net", "balls"], note: "arrive ~3pm"}, ...]}
+//   {people: [{name: "Tung", brings: ["net", "balls"], note: "arrive ~3pm", going: true}, ...]}
 //   or {names: "Tung, Amy, Ben"} (names only)
 // Each person becomes its own signup with its own remove_token (returned only here).
 // Names already on the list (case-insensitive) are skipped, which also absorbs double-submits.
@@ -18,7 +18,7 @@ export async function onRequestPost(ctx) {
   if (!people.length) return bad('err_names');
 
   const { results: existing } = await env.DB.prepare(
-    'SELECT name FROM signups WHERE event_id = ?'
+    'SELECT name, going FROM signups WHERE event_id = ?'
   ).bind(params.id).all();
   const taken = new Set(existing.map((r) => r.name.toLowerCase()));
   const fresh = people.filter((p) => !taken.has(p.name.toLowerCase()));
@@ -26,18 +26,19 @@ export async function onRequestPost(ctx) {
   if (existing.length + fresh.length > MAX_SIGNUPS_PER_EVENT) return bad('err_too_many');
 
   const now = Date.now();
-  const added = fresh.map((p) => ({ id: newId(), name: p.name, remove_token: newToken(), brings: p.brings, note: p.note }));
+  const added = fresh.map((p) => ({ id: newId(), name: p.name, remove_token: newToken(), brings: p.brings, note: p.note, going: p.going }));
   if (added.length) {
     await env.DB.batch(added.map((s) =>
       env.DB.prepare(
-        'INSERT INTO signups (id, event_id, name, brings, note, remove_token, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
-      ).bind(s.id, params.id, s.name, s.brings.join(','), s.note, s.remove_token, now)
+        'INSERT INTO signups (id, event_id, name, brings, note, going, remove_token, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      ).bind(s.id, params.id, s.name, s.brings.join(','), s.note, s.going ? 1 : 0, s.remove_token, now)
     ));
   }
-  if (added.length) {
+  const joined = added.filter((s) => s.going);
+  if (joined.length) {
     inBackground(ctx, notify(env, {
       eventId: params.id, kinds: ['signups'], msg: 'joined', exclude: request.headers.get('x-push-sub'),
-      vars: { names: namesText(added.map((s) => s.name)), count: existing.length + added.length },
+      vars: { names: namesText(joined.map((s) => s.name)), count: existing.filter((r) => r.going).length + joined.length },
     }));
   }
   return json({ added, skipped }, 201);
