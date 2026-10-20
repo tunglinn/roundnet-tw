@@ -11,7 +11,7 @@ export async function onRequestGet({ request, env }) {
   const args = [Date.now() - 3 * 3600 * 1000];
   let sql = `SELECT e.id, e.title, e.starts_at, e.ends_at, e.place_name, e.city, e.lat, e.lng,
                     e.level, e.max_players, e.min_players, e.series_id, e.cancelled_at, e.cancel_reason,
-                    (SELECT COUNT(*) FROM signups s WHERE s.event_id = e.id) AS count,
+                    (SELECT COUNT(*) FROM signups s WHERE s.event_id = e.id AND s.going = 1) AS count,
                     EXISTS (SELECT 1 FROM signups s WHERE s.event_id = e.id
                             AND ',' || s.brings || ',' LIKE '%,net,%') AS has_net,
                     EXISTS (SELECT 1 FROM signups s WHERE s.event_id = e.id

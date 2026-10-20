@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS signups (
   name         TEXT NOT NULL,
   brings       TEXT NOT NULL DEFAULT '',   -- comma-separated gear keys, e.g. "net,balls"
   note         TEXT NOT NULL DEFAULT '',
+  going        INTEGER NOT NULL DEFAULT 1, -- 0 = said they're not going (not counted)
   remove_token TEXT NOT NULL,
   created_at   INTEGER NOT NULL
 );

@@ -71,11 +71,13 @@ function personRow(first, person) {
         return '<label class="chk"><input type="checkbox" value="' + g + '"> ' + esc(gearName(g)) + '</label>';
       }).join('') +
     '</div>' +
-    '<label>' + esc(t('f_note')) + '<input type="text" class="p-note" maxlength="100" placeholder="' + esc(t('ph_note')) + '"></label>';
+    '<label>' + esc(t('f_note')) + '<input type="text" class="p-note" maxlength="100" placeholder="' + esc(t('ph_note')) + '"></label>' +
+    '<label class="chk"><input type="checkbox" class="p-out"> ' + esc(t('f_not_going')) + '</label>';
   if (!first) box.querySelector('.x').onclick = function () { box.remove(); updateJoinCount(); };
   if (person) {
     box.querySelector('.p-name').value = person.name;
     box.querySelector('.p-note').value = person.note;
+    box.querySelector('.p-out').checked = !person.going;
     box.querySelectorAll('.gearpick input').forEach(function (c) { c.checked = person.brings.indexOf(c.value) >= 0; });
   }
   return box;
@@ -85,6 +87,7 @@ function readPerson(box) {
   return {
     name: box.querySelector('.p-name').value,
     note: box.querySelector('.p-note').value,
+    going: !box.querySelector('.p-out').checked,
     brings: Array.prototype.filter.call(box.querySelectorAll('.gearpick input'), function (c) { return c.checked; })
       .map(function (c) { return c.value; })
   };
@@ -234,20 +237,24 @@ function render(ev) {
 function renderPeople(ev) {
   current = ev;
   var max = ev.max_players;
-  var going = max ? ev.signups.slice(0, max) : ev.signups;
-  var waiting = max ? ev.signups.slice(max) : [];
+  var yes = ev.signups.filter(function (s) { return s.going; });
+  var no = ev.signups.filter(function (s) { return !s.going; });
+  var going = max ? yes.slice(0, max) : yes;
+  var waiting = max ? yes.slice(max) : [];
+  var noList = no.length ? '<p style="margin:8px 0 2px"><b>' + esc(t('not_going')) + ' (' + no.length + ')</b></p>' +
+    '<ol class="names was-list">' + no.map(nameItem).join('') + '</ol>' : '';
   var counts = {};
-  ev.signups.forEach(function (s) { s.brings.forEach(function (g) { counts[g] = (counts[g] || 0) + 1; }); });
+  yes.forEach(function (s) { s.brings.forEach(function (g) { counts[g] = (counts[g] || 0) + 1; }); });
   var gear = GEAR.filter(function (g) { return counts[g]; })
     .map(function (g) { return esc(gearName(g)) + (counts[g] > 1 ? ' ×' + counts[g] : ''); }).join(' · ');
 
   if (ev.cancelled_at) {
     // Banner at the top says it's cancelled; just show who had signed up, greyed out.
-    $('goingbar').textContent = t('had_signed_up') + ' (' + ev.signups.length + ')';
+    $('goingbar').textContent = t('had_signed_up') + ' (' + yes.length + ')';
     $('status').innerHTML = '';
-    $('people').innerHTML = ev.signups.length
-      ? '<ol class="names was-list">' + ev.signups.map(nameItem).join('') + '</ol>'
-      : '—';
+    $('people').innerHTML = (yes.length
+      ? '<ol class="names was-list">' + yes.map(nameItem).join('') + '</ol>'
+      : '—') + noList;
     return;
   }
   $('goingbar').textContent = t('going') + ' (' + playersText(going.length, max) + ')';
@@ -259,7 +266,8 @@ function renderPeople(ev) {
     (going.length ? '<ol class="names">' + going.map(nameItem).join('') + '</ol>' : esc(t('nobody'))) +
     (waiting.length ? '<p style="margin:8px 0 2px"><b>' + esc(t('waitlist')) + ' (' + waiting.length + ')</b></p>' +
       '<ol class="names" start="' + (going.length + 1) + '">' + waiting.map(nameItem).join('') + '</ol>' : '') +
-    (ev.signups.length
+    noList +
+    (yes.length
       ? '<div class="gear"><b>' + esc(t('gear_summary')) + ':</b> ' + (gear || esc(t('gear_none'))) +
         '</div>'
       : '');

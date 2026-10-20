@@ -166,7 +166,7 @@ a.addfriend { display: inline-block; margin: 0 0 4px 2px; }
 /* Big, separate primary button so it can't be confused with "+ Add a friend" */
 button.joinbtn { display: block; width: 100%; margin-top: 14px; padding: 8px; font-size: 16px; font-weight: bold; background: #ffd800; }
 ol.names fieldset.person { margin: 4px 0 8px; background: var(--face); }
-.gearpick label.chk { display: inline-block; font-weight: normal; margin: 2px 12px 2px 0; white-space: nowrap; }
+.gearpick label.chk, fieldset.person label.chk { display: inline-block; font-weight: normal; margin: 2px 12px 2px 0; white-space: nowrap; }
 
 /* ---------- map ---------- */
 .map { height: 440px; border: 2px solid; border-color: var(--shadow) var(--light) var(--light) var(--shadow); }

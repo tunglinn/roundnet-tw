@@ -7,7 +7,7 @@ export async function onRequestGet({ request, env, next }) {
 
   const ev = await env.DB.prepare(
     `SELECT title, starts_at, ends_at, place_name, cancelled_at,
-            (SELECT COUNT(*) FROM signups s WHERE s.event_id = events.id) AS count
+            (SELECT COUNT(*) FROM signups s WHERE s.event_id = events.id AND s.going = 1) AS count
      FROM events WHERE id = ?`
   ).bind(id).first();
   if (!ev) return res;

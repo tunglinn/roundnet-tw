@@ -7,7 +7,7 @@ import { notify, inBackground } from '../../../lib/notify.js';
 // Returns {row} if allowed, otherwise {denied: Response}.
 async function authorize(request, env, id) {
   const row = await env.DB.prepare(
-    `SELECT s.event_id, s.name, s.remove_token, e.edit_token FROM signups s JOIN events e ON e.id = s.event_id
+    `SELECT s.event_id, s.name, s.going, s.remove_token, e.edit_token FROM signups s JOIN events e ON e.id = s.event_id
      WHERE s.id = ?`
   ).bind(id).first();
   if (!row) return { denied: bad('err_not_found', 404) };
@@ -19,8 +19,12 @@ async function authorize(request, env, id) {
   return { row };
 }
 
-// PATCH /api/signups/:id  {name, brings: [...], note}
-export async function onRequestPatch({ params, request, env }) {
+const goingCount = async (env, eventId) =>
+  (await env.DB.prepare('SELECT COUNT(*) AS n FROM signups WHERE event_id = ? AND going = 1').bind(eventId).first()).n;
+
+// PATCH /api/signups/:id  {name, brings: [...], note, going}
+export async function onRequestPatch(ctx) {
+  const { params, request, env } = ctx;
   const { row, denied } = await authorize(request, env, params.id);
   if (denied) return denied;
   const body = await readJson(request);
@@ -32,8 +36,15 @@ export async function onRequestPatch({ params, request, env }) {
   ).bind(row.event_id, params.id, p.name).first();
   if (clash) return bad('err_name_taken');
 
-  await env.DB.prepare('UPDATE signups SET name = ?, brings = ?, note = ? WHERE id = ?')
-    .bind(p.name, p.brings.join(','), p.note, params.id).run();
+  await env.DB.prepare('UPDATE signups SET name = ?, brings = ?, note = ?, going = ? WHERE id = ?')
+    .bind(p.name, p.brings.join(','), p.note, p.going ? 1 : 0, params.id).run();
+  // Switching between going / not going is a join or leave for the organizer.
+  if (p.going !== !!row.going) {
+    inBackground(ctx, notify(env, {
+      eventId: row.event_id, kinds: ['signups'], msg: p.going ? 'joined' : 'left', exclude: request.headers.get('x-push-sub'),
+      vars: { names: p.name, count: await goingCount(env, row.event_id) },
+    }));
+  }
   return json({ ok: true });
 }
 
@@ -43,10 +54,11 @@ export async function onRequestDelete(ctx) {
   const { row, denied } = await authorize(request, env, params.id);
   if (denied) return denied;
   await env.DB.prepare('DELETE FROM signups WHERE id = ?').bind(params.id).run();
-  const left = await env.DB.prepare('SELECT COUNT(*) AS n FROM signups WHERE event_id = ?').bind(row.event_id).first();
-  inBackground(ctx, notify(env, {
-    eventId: row.event_id, kinds: ['signups'], msg: 'left', exclude: request.headers.get('x-push-sub'),
-    vars: { names: row.name, count: left.n },
-  }));
+  if (row.going) {
+    inBackground(ctx, notify(env, {
+      eventId: row.event_id, kinds: ['signups'], msg: 'left', exclude: request.headers.get('x-push-sub'),
+      vars: { names: row.name, count: await goingCount(env, row.event_id) },
+    }));
+  }
   return json({ ok: true });
 }

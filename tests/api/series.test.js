@@ -97,6 +97,17 @@ describe('weekly pickups', () => {
 });
 
 describe('cancel instead of delete', () => {
+  it('people not going are listed but not counted', async () => {
+    const { data } = await create();
+    await call(signups.onRequestPost, { env, params: { id: data.id }, method: 'POST', body: { people: [
+      { name: 'Tung', brings: ['net'] }, { name: 'Amy', brings: ['balls'], note: 'sick', going: false },
+    ] } });
+    const { data: rows } = await list();
+    expect(rows[0]).toMatchObject({ count: 1, has_net: 1, has_balls: 0 });
+    const { data: ev } = await get(data.id);
+    expect(ev.signups.map((s) => [s.name, s.going, s.brings])).toEqual([['Tung', true, ['net']], ['Amy', false, []]]);
+  });
+
   it('cancelled pickups stay listed, refuse new signups, and can be restored', async () => {
     const { data } = await create();
     expect((await org(cancel.onRequestPost, data.id, 'wrong')).status).toBe(403);
