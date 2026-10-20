@@ -10,7 +10,7 @@ function keyLength(s) {
 }
 
 // What to follow, from the request body. Returns [{target, kind}] or null.
-//   {event_id, kinds: ['updates', 'signups']}  — one pickup (or its series, for 'signups')
+//   {event_id, kinds: ['updates', 'signups'], series?: true}  — one pickup (series: every date, for 'signups')
 //   {city: 'taipei' | 'all', kinds: ['new']}   — new pickups in a city / anywhere
 export async function followsFor(env, b) {
   const kinds = Array.isArray(b.kinds) ? b.kinds : [];
@@ -21,7 +21,7 @@ export async function followsFor(env, b) {
   const ev = await env.DB.prepare('SELECT id, series_id FROM events WHERE id = ?').bind(b.event_id ?? '').first();
   const ok = kinds.filter((k) => EVENT_KINDS.includes(k));
   if (!ev || !ok.length) return null;
-  return ok.map((k) => ({ target: followTarget(ev, k), kind: k }));
+  return ok.map((k) => ({ target: followTarget(ev, k, b.series), kind: k }));
 }
 
 // POST /api/push/subscribe  {subscription: PushSubscription.toJSON(), lang: 'en'|'zh', ...what to follow}

@@ -52,7 +52,8 @@ export async function onRequestPut(ctx) {
   if (errors.length) return bad(errors);
 
   const exclude = request.headers.get('x-push-sub');
-  const changed = (id, kinds = ['updates', 'signups']) => notify(env, { eventId: id, kinds, msg: 'changed', exclude });
+  const changed = (id, kinds = ['updates', 'signups'], targets = null) =>
+    notify(env, { eventId: id, kinds, msg: 'changed', exclude, targets });
 
   if (body.scope !== 'future' || !ev.series_id) {
     await updateStmt(env, params.id, v).run();
@@ -72,8 +73,8 @@ export async function onRequestPut(ctx) {
   // Players follow single dates, so tell each changed date's followers. Organizers follow
   // the whole series, so they get one notification instead of one per date.
   inBackground(ctx, Promise.all([
-    ...later.map((e) => changed(e.id, ['updates'])),
-    changed(params.id, ['signups']),
+    ...later.map((e) => changed(e.id, ['updates', 'signups'], [e.id])),
+    changed(params.id, ['signups'], ['s:' + ev.series_id]),
   ]));
   return json({ ok: true });
 }

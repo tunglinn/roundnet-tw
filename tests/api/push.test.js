@@ -26,8 +26,8 @@ beforeEach(async () => {
 afterEach(() => push.restore());
 
 const create = (extra = {}) => call(events.onRequestPost, { env, method: 'POST', body: { ...base, ...extra } }).then((r) => r.data);
-const follow = (browser, event_id, kinds, lang = 'en') =>
-  call(subscribe.onRequestPost, { env, method: 'POST', body: { subscription: browser.subscription, event_id, kinds, lang } });
+const follow = (browser, event_id, kinds, lang = 'en', extra = {}) =>
+  call(subscribe.onRequestPost, { env, method: 'POST', body: { subscription: browser.subscription, event_id, kinds, lang, ...extra } });
 const join = (id, people, headers = {}) =>
   call(signups.onRequestPost, { env, params: { id }, method: 'POST', body: { people }, headers });
 const received = async (browser) => Promise.all(
@@ -84,10 +84,36 @@ describe('push notifications', () => {
   it('organizer of a weekly pickup hears about every date', async () => {
     const ev = await create({ repeat: 'weekly' });
     const organizer = await fakeBrowser();
-    await follow(organizer, ev.id, ['signups']);
+    await follow(organizer, ev.id, ['signups'], 'en', { series: true });
     const later = (await call(events.onRequestGet, { env })).data[2];
     await join(later.id, [{ name: 'Ben' }]);
     expect((await received(organizer))[0]).toMatchObject({ body: 'Ben joined · 1 going', url: '/event?id=' + later.id });
+  });
+
+  it('tells followers when someone edits their signup, in their language', async () => {
+    const ev = await create();
+    const en = await fakeBrowser();
+    const zh = await fakeBrowser();
+    await follow(en, ev.id, ['updates', 'signups']);
+    await follow(zh, ev.id, ['updates', 'signups'], 'zh');
+    const { data } = await join(ev.id, [{ name: 'Bob' }]);
+    const s = data.added[0];
+    await call(signup.onRequestPatch, {
+      env, params: { id: s.id }, method: 'PATCH', body: { name: 'Bob', brings: ['net', 'balls'], note: '3pm' },
+      headers: { 'x-remove-token': s.remove_token },
+    });
+    expect((await received(en)).map((m) => m.body)).toEqual(['Bob joined · 1 going', 'Bob updated: bringing net, balls · 3pm']);
+    expect((await received(zh))[1].body).toBe('Bob 更新了報名：會帶球網、球 · 3pm');
+  });
+
+  it('a player following joins on one weekly date hears only about that date', async () => {
+    const ev = await create({ repeat: 'weekly' });
+    const player = await fakeBrowser();
+    await follow(player, ev.id, ['signups']);
+    const later = (await call(events.onRequestGet, { env })).data[2];
+    await join(later.id, [{ name: 'Ben' }]);
+    await join(ev.id, [{ name: 'Amy' }]);
+    expect((await received(player)).map((m) => m.body)).toEqual(['Amy joined · 1 going']);
   });
 
   it('forgets subscriptions the push service says are gone', async () => {

@@ -1,6 +1,6 @@
 import { parsePeople } from '../../../lib/validate.js';
 import { json, bad, readJson } from '../../../lib/http.js';
-import { notify, inBackground } from '../../../lib/notify.js';
+import { notify, inBackground, signupDetails } from '../../../lib/notify.js';
 
 // Changing or removing a signup is allowed with the name's X-Remove-Token
 // (the device that added it) or the event's X-Edit-Token (the organizer).
@@ -38,11 +38,17 @@ export async function onRequestPatch(ctx) {
 
   await env.DB.prepare('UPDATE signups SET name = ?, brings = ?, note = ?, going = ? WHERE id = ?')
     .bind(p.name, p.brings.join(','), p.note, p.going ? 1 : 0, params.id).run();
-  // Switching between going / not going is a join or leave for the organizer.
+  // Switching between going / not going is a join or leave; other edits by someone going are 'edited'.
+  const exclude = request.headers.get('x-push-sub');
   if (p.going !== !!row.going) {
     inBackground(ctx, notify(env, {
-      eventId: row.event_id, kinds: ['signups'], msg: p.going ? 'joined' : 'left', exclude: request.headers.get('x-push-sub'),
+      eventId: row.event_id, kinds: ['signups'], msg: p.going ? 'joined' : 'left', exclude,
       vars: { names: p.name, count: await goingCount(env, row.event_id) },
+    }));
+  } else if (p.going) {
+    inBackground(ctx, notify(env, {
+      eventId: row.event_id, kinds: ['signups'], msg: 'edited', exclude,
+      vars: { name: p.name, details: (lang) => signupDetails(lang, p.brings, p.note) },
     }));
   }
   return json({ ok: true });
